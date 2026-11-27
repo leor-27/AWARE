@@ -1,9 +1,4 @@
-// Not yet included pages
-
 Figma Link: https://www.figma.com/design/dBluo3ALBCAbpgjy3V6Xd6/AWARE-App-Design?node-id=387-3721&t=wIIUYrZIZnFzA604-1
-
-(EC - Permissions overview, EC - Attempt log, EC - Upload status, EC - Spoken status, EC - Clear history confirmation, EC - History empty, NM - Location Map (USER), 
-NM - Pick Destination (USER), NM - Location Map (CONTACT), NM - Monitoring Destination (CONTACT))
 
 
 1. Open the existing Expo project
@@ -31,3 +26,7 @@ npx expo install react-native-svg expo-haptics expo-speech expo-camera expo-loca
 Once the dependencies are installed:
 
 npx expo start
+
+
+
+Vercel Link: https://aware-peach.vercel.app

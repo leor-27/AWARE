@@ -33,7 +33,7 @@ export const CreateAccountScreen: React.FC<CreateAccountScreenProps> = ({
   onGoToSignIn,
 }) => {
   const { width } = useWindowDimensions();
-  const clampedWidth = Math.min(width, 390);
+  const clampedWidth = Math.min(width, 370);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');

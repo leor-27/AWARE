@@ -29,7 +29,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionScreenProps> = ({
   onGetStarted,
 }) => {
   const { width } = useWindowDimensions();
-  const clampedWidth = Math.min(width, 390);
+  const clampedWidth = Math.min(width, 370);
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(initialRole);
 
   const handleSelectRole = (role: UserRole) => {

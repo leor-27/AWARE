@@ -35,6 +35,7 @@ import { Coordinates } from './NavigationScreen';
 
 export type SosViewState =
   | 'sos-home'
+  | 'preparing'
   | 'contacts'
   | 'contacting'
   | 'sending'
@@ -53,9 +54,11 @@ interface SosSessionFlowProps {
   feedbackPrefs: FeedbackPreferences;
   location: Coordinates;
   contacts: EmergencyContact[];
+  hasDemoSosData: boolean;
   onUpdateContacts: (contacts: EmergencyContact[]) => void;
   onDispatchSosAlert: (messageText: string) => void;
   onBackToNavigation: () => void;
+  onReturnToSmartVision: () => void;
 }
 
 export const SosSessionFlow: React.FC<SosSessionFlowProps> = ({
@@ -63,9 +66,11 @@ export const SosSessionFlow: React.FC<SosSessionFlowProps> = ({
   feedbackPrefs,
   location,
   contacts,
+  hasDemoSosData,
   onUpdateContacts,
   onDispatchSosAlert,
   onBackToNavigation,
+  onReturnToSmartVision,
 }) => {
   const [view, setView] = useState<SosViewState>(initialView);
   const [returnBeforeEndConfirm, setReturnBeforeEndConfirm] =
@@ -73,7 +78,7 @@ export const SosSessionFlow: React.FC<SosSessionFlowProps> = ({
   const [sentCount, setSentCount] = useState(1);
   const [failedCount, setFailedCount] = useState(1);
   const [history, setHistory] = useState<SosHistorySession[]>(
-    DEFAULT_HISTORY_SESSIONS
+    hasDemoSosData ? DEFAULT_HISTORY_SESSIONS : []
   );
   const [historyInitialSessionId, setHistoryInitialSessionId] = useState<
     string | null
@@ -124,7 +129,7 @@ export const SosSessionFlow: React.FC<SosSessionFlowProps> = ({
     }
   }, [view, contacts.length, secondContact, feedbackPrefs]);
 
-  const startSosCallSession = async () => {
+  const startSosCallSession = async (firstView: 'contacting' | 'sending' = 'contacting') => {
     if (contacts.length === 0) {
       triggerHaptic('warning', feedbackPrefs.hapticsEnabled);
       speakCue('No emergency contacts saved. Opening SOS setup.', feedbackPrefs);
@@ -137,7 +142,7 @@ export const SosSessionFlow: React.FC<SosSessionFlowProps> = ({
       `SOS call in progress. Contacting ${firstContact}.`,
       feedbackPrefs
     );
-    setView('contacting');
+    setView(firstView);
 
     const smsText = `AWARE SOS ALERT: Immediate help needed near Magsaysay Avenue, Naga City (${location.latitude.toFixed(
       5
@@ -237,6 +242,65 @@ export const SosSessionFlow: React.FC<SosSessionFlowProps> = ({
     );
   }
 
+  if (view === 'preparing') {
+    return (
+      <ScrollView
+        style={styles.root}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.topIconTile}>
+          <ShieldCheckIcon size={22} color={colors.sage} />
+        </View>
+        <Text style={styles.heading}>SOS activated</Text>
+        <Text style={styles.subheading}>Preparing your emergency message.</Text>
+
+        <View style={styles.preparePhoneWrap}>
+          <View style={styles.preparePhoneRing}>
+            <View style={styles.preparePhoneCircle}>
+              <PhoneOutlineIcon size={58} color={colors.white} />
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.actionsStack}>
+          <Pressable
+            onPress={() => void startSosCallSession('sending')}
+            style={styles.navyPillBtn}
+            accessibilityRole="button"
+            accessibilityLabel="View status and start the emergency message flow"
+          >
+            <Text style={styles.navyPillText}>View Status</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              triggerHaptic('tap', feedbackPrefs.hapticsEnabled);
+              setView('sos-home');
+              speakCue('Alert cancelled.', feedbackPrefs);
+            }}
+            style={styles.outlinePillBtn}
+          >
+            <Text style={styles.outlinePillText}>Cancel alert</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.sageCard}>
+          <View style={styles.cardHeaderRow}>
+            <GuestUserIcon size={20} color={colors.sage} />
+            <Text style={styles.cardTitle}>
+              {contacts.length} {contacts.length === 1 ? 'recipient' : 'recipients'} waiting
+            </Text>
+          </View>
+          {contacts.map((contact) => (
+            <Text key={contact.id} style={styles.cardLine}>
+              {contact.name} • {contact.relation}
+            </Text>
+          ))}
+        </View>
+      </ScrollView>
+    );
+  }
+
   /* 1. EMERGENCY SOS HOME */
   if (view === 'sos-home') {
     return (
@@ -269,7 +333,7 @@ export const SosSessionFlow: React.FC<SosSessionFlowProps> = ({
         </View>
 
         <Pressable
-          onPress={startSosCallSession}
+          onPress={() => void startSosCallSession()}
           accessibilityRole="button"
           accessibilityLabel="Hold volume up and down together for 3 seconds to start an SOS call. Tap to start SOS session."
           style={({ pressed }) => [
@@ -667,6 +731,10 @@ export const SosSessionFlow: React.FC<SosSessionFlowProps> = ({
           >
             <Text style={styles.dangerPillText}>End session</Text>
           </Pressable>
+
+          <Pressable onPress={onReturnToSmartVision} style={styles.outlinePillBtn}>
+            <Text style={styles.outlinePillText}>Back to Smart Vision</Text>
+          </Pressable>
         </View>
       </ScrollView>
     );
@@ -740,6 +808,10 @@ export const SosSessionFlow: React.FC<SosSessionFlowProps> = ({
             style={styles.dangerPillBtn}
           >
             <Text style={styles.dangerPillText}>End session</Text>
+          </Pressable>
+
+          <Pressable onPress={onReturnToSmartVision} style={styles.outlinePillBtn}>
+            <Text style={styles.outlinePillText}>Back to Smart Vision</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -863,6 +935,10 @@ export const SosSessionFlow: React.FC<SosSessionFlowProps> = ({
           >
             <Text style={styles.outlinePillText}>Back to Emergency SOS</Text>
           </Pressable>
+
+          <Pressable onPress={onReturnToSmartVision} style={styles.outlinePillBtn}>
+            <Text style={styles.outlinePillText}>Back to Smart Vision</Text>
+          </Pressable>
         </View>
       </ScrollView>
     );
@@ -905,6 +981,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 4,
+  },
+  preparePhoneWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 12,
+  },
+  preparePhoneRing: {
+    width: 190,
+    height: 190,
+    borderRadius: 95,
+    borderWidth: 5,
+    borderColor: '#E3BFC2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  preparePhoneCircle: {
+    width: 166,
+    height: 166,
+    borderRadius: 83,
+    backgroundColor: '#B32632',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   heading: {
     fontSize: 22,

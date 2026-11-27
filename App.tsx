@@ -74,7 +74,7 @@ const INITIAL_RECORDINGS: VideoRecordingItem[] = [
 export default function App() {
   const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
   const showDesktopPhoneFrame = Platform.OS === 'web' && viewportWidth > 600;
-  const appWidth = showDesktopPhoneFrame ? 390 : Math.min(viewportWidth, 390);
+  const appWidth = showDesktopPhoneFrame ? 370 : Math.min(viewportWidth, 370);
   const fixedPreviewHeight = showDesktopPhoneFrame && viewportHeight >= 917;
   const [stage, setStage] = useState<AppStage>('splash');
   const [role, setRole] = useState<UserRole | null>(null);
@@ -107,16 +107,25 @@ export default function App() {
     defaultFeedbackPreferences
   );
   const [location, setLocation] = useState<Coordinates>({
-    latitude: 37.7749,
-    longitude: -122.4194,
+    latitude: 13.6244,
+    longitude: 123.1864,
     accuracy: 8,
   });
-  const [contacts, setContacts] = useState<EmergencyContact[]>(INITIAL_CONTACTS);
+  const [contacts, setContacts] = useState<EmergencyContact[]>([]);
+  const [hasDemoSosData, setHasDemoSosData] = useState(false);
+  const [hasDemoTrustedConnection, setHasDemoTrustedConnection] = useState(false);
   const [recordings, setRecordings] =
     useState<VideoRecordingItem[]>(INITIAL_RECORDINGS);
   const [alerts, setAlerts] = useState<SosAlertEvent[]>([]);
 
   const handleAuthSuccess = (updates?: Partial<UserProfile>) => {
+    const email = updates?.email?.trim().toLowerCase() ?? '';
+    const isJeremyDemo = role === 'blind' && email === 'jeremylcinco@gmail.com';
+    const isJosephineDemo = role === 'trusted' && email === 'josephinedlsantos@gmail.com';
+    setContacts(isJeremyDemo ? INITIAL_CONTACTS : []);
+    setHasDemoSosData(isJeremyDemo);
+    setHasDemoTrustedConnection(isJosephineDemo);
+    if (!isJosephineDemo) setAlerts([]);
     if (updates) {
       const update = (prev: UserProfile): UserProfile => ({
         name: updates.name ?? prev.name,
@@ -266,6 +275,9 @@ export default function App() {
                 ...prev.filter((item) => !(item.role === role && item.email === newAccount.email)),
                 newAccount,
               ]);
+              setContacts([]);
+              setHasDemoSosData(false);
+              setHasDemoTrustedConnection(false);
               if (role === 'trusted') setTrustedProfile(newAccount.profile);
               else setProfile(newAccount.profile);
               setStage(permissionsDone ? 'app' : 'permissions');
@@ -304,6 +316,7 @@ export default function App() {
           location={location}
           onLocationUpdate={setLocation}
           contacts={contacts}
+          hasDemoSosData={hasDemoSosData}
           onUpdateContacts={setContacts}
           onDispatchSosAlert={handleDispatchSos}
           recordings={recordings}
@@ -318,6 +331,7 @@ export default function App() {
       {stage === 'app' && role === 'trusted' && (
         <TrustedDashboardScreen
           profile={trustedProfile}
+          hasDemoConnection={hasDemoTrustedConnection}
           onUpdateProfile={setTrustedProfile}
           feedbackPrefs={feedbackPrefs}
           onUpdatePrefs={setFeedbackPrefs}
@@ -354,7 +368,7 @@ const styles = StyleSheet.create({
   mobileFrame: {
     flex: 1,
     alignSelf: 'center',
-    maxWidth: 390,
+    maxWidth: 370,
     backgroundColor: '#F4F4F2',
     position: 'relative',
   },

@@ -74,7 +74,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
   onComplete,
 }) => {
   const { width } = useWindowDimensions();
-  const clampedWidth = Math.min(width, 390);
+  const clampedWidth = Math.min(width, 370);
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -90,7 +90,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
     speakCue(`${slide.leadBold}${slide.description}`, feedbackPrefs);
   };
 
-  const handleMomentumEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+  const updateActivePage = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const nextIndex = Math.round(e.nativeEvent.contentOffset.x / clampedWidth);
     if (nextIndex !== activeIndex && nextIndex >= 0 && nextIndex < SLIDES.length) {
       setActiveIndex(nextIndex);
@@ -108,7 +108,8 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
             horizontal
             pagingEnabled
             showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={handleMomentumEnd}
+            onScroll={updateActivePage}
+            onMomentumScrollEnd={updateActivePage}
             scrollEventThrottle={16}
             style={styles.pager}
           >

@@ -22,7 +22,7 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
   onBack,
 }) => {
   const { width } = useWindowDimensions();
-  const clampedWidth = Math.min(width, 390);
+  const clampedWidth = Math.min(width, 370);
   const [mode, setMode] = useState<'phone' | 'email'>('phone');
   const [query, setQuery] = useState('');
   const [sentNotice, setSentNotice] = useState(false);

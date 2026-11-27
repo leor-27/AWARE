@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
   Platform,
-  ImageBackground,
   Pressable,
   StyleSheet,
   Text,
@@ -10,6 +9,7 @@ import {
 import * as Location from 'expo-location';
 import { AudioSpeakerWaveIcon, MapPinOutlineIcon, NavPaperArrowIcon, PersonPinIcon, ShieldCheckIcon } from '../../components/AwareIcons';
 import Svg, { Path } from 'react-native-svg';
+import { OpenStreetMap } from '../../components/OpenStreetMap';
 import { colors, spacing } from '../../theme/tokens';
 import {
   FeedbackPreferences,
@@ -37,8 +37,12 @@ interface NavigationScreenProps {
   location: Coordinates;
   onLocationUpdate: (coords: Coordinates) => void;
   contacts: EmergencyContact[];
+  hasDemoSosData: boolean;
   onUpdateContacts: (contacts: EmergencyContact[]) => void;
   onDispatchSosAlert: (messageText: string) => void;
+  startEmergencySos: boolean;
+  onEmergencySosStarted: () => void;
+  onReturnToSmartVision: () => void;
 }
 
 export const NavigationScreen: React.FC<NavigationScreenProps> = ({
@@ -46,11 +50,22 @@ export const NavigationScreen: React.FC<NavigationScreenProps> = ({
   location,
   onLocationUpdate,
   contacts,
+  hasDemoSosData,
   onUpdateContacts,
   onDispatchSosAlert,
+  startEmergencySos,
+  onEmergencySosStarted,
+  onReturnToSmartVision,
 }) => {
-  const [sosInitialView, setSosInitialView] = useState<SosViewState | null>(null);
+  const [sosInitialView, setSosInitialView] = useState<SosViewState | null>(
+    startEmergencySos ? 'preparing' : null
+  );
   const [routeMode, setRouteMode] = useState<'location' | 'locating' | 'destination-located' | 'navigation'>('location');
+
+  useEffect(() => {
+    if (!startEmergencySos) return;
+    onEmergencySosStarted();
+  }, [startEmergencySos, onEmergencySosStarted]);
 
   const destinationName = DESTINATIONS[0];
 
@@ -107,9 +122,11 @@ export const NavigationScreen: React.FC<NavigationScreenProps> = ({
         feedbackPrefs={feedbackPrefs}
         location={location}
         contacts={contacts}
+        hasDemoSosData={hasDemoSosData}
         onUpdateContacts={onUpdateContacts}
         onDispatchSosAlert={onDispatchSosAlert}
         onBackToNavigation={() => setSosInitialView(null)}
+        onReturnToSmartVision={onReturnToSmartVision}
       />
     );
   }
@@ -166,7 +183,8 @@ export const NavigationScreen: React.FC<NavigationScreenProps> = ({
         <Text style={styles.mapTitle}>Your Location</Text>
         <View style={styles.liveChip}><View style={styles.liveDot} /><Text style={styles.liveText}>Live</Text></View>
       </View>
-      <ImageBackground source={require('../../../assets/location-map-user.png')} resizeMode="cover" style={styles.mapCanvas}>
+      <View style={styles.mapCanvas}>
+        <OpenStreetMap center={location} style={StyleSheet.absoluteFill} />
         <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" viewBox="0 0 400 620" preserveAspectRatio="xMidYMid slice">
           {routeMode !== 'location' && <Path d="M60 330 Q120 280 197 304 T330 248" stroke={colors.navy} strokeWidth="5" strokeDasharray="10 7" fill="none" />}
         </Svg>
@@ -183,7 +201,7 @@ export const NavigationScreen: React.FC<NavigationScreenProps> = ({
             <Pressable onPress={() => setRouteMode('location')} style={styles.endAction}><Text style={styles.endActionText}>End Navigation</Text></Pressable>
           </>}
         </View>
-      </ImageBackground>
+      </View>
       <View style={styles.privacy}><ShieldCheckIcon size={15} color={colors.sage} /><Text style={styles.privacyText}>Your location stays private until you share it.</Text><Pressable onPress={() => setSosInitialView('sos-home')}><Text style={styles.sosLink}>Emergency SOS</Text></Pressable></View>
     </View>
   );

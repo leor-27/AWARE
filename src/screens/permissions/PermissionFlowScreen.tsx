@@ -93,7 +93,7 @@ export const PermissionFlowScreen: React.FC<PermissionFlowScreenProps> = ({
   onComplete,
 }) => {
   const { width } = useWindowDimensions();
-  const clampedWidth = Math.min(width, 390);
+  const clampedWidth = Math.min(width, 370);
   const [stepIdx, setStepIdx] = useState(0);
   const [, requestCamera] = useCameraPermissions();
   const steps = role === 'trusted' ? PERMISSION_STEPS.slice(0, 3) : PERMISSION_STEPS;

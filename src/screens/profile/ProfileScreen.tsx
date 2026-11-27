@@ -4,6 +4,7 @@ import {
   PanResponder,
   Pressable,
   ScrollView,
+  Switch,
   StyleSheet,
   Text,
   TextInput,
@@ -34,6 +35,7 @@ interface ProfileScreenProps {
   onReplayOnboarding: () => void;
   onSwitchRole: () => void;
   onSignOut: () => void;
+  showVibrationToggle?: boolean;
 }
 
 type EditModalKind = 'phone' | 'email' | 'password' | null;
@@ -90,6 +92,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onReplayOnboarding,
   onSwitchRole,
   onSignOut,
+  showVibrationToggle = false,
 }) => {
   const [showSettingsView, setShowSettingsView] = useState(false);
   const [expandedSlider, setExpandedSlider] = useState<'vibration' | 'audio' | null>(
@@ -152,8 +155,31 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
           <View style={styles.sageDivider} />
 
+          {showVibrationToggle && (
+            <View style={styles.settingRow}>
+              <VibrationPhoneIcon size={26} color={colors.navy} />
+              <Text style={styles.settingRowTitle}>Vibration</Text>
+              <Switch
+                value={feedbackPrefs.hapticsEnabled}
+                onValueChange={(hapticsEnabled) => {
+                  onUpdatePrefs({ ...feedbackPrefs, hapticsEnabled });
+                  if (!hapticsEnabled) {
+                    setExpandedSlider((current) =>
+                      current === 'vibration' ? null : current
+                    );
+                  }
+                  if (hapticsEnabled) triggerHaptic('success', true);
+                }}
+                trackColor={{ false: '#C5CDC8', true: colors.sage }}
+                thumbColor={colors.white}
+                accessibilityLabel="Vibration feedback"
+                accessibilityHint="Turns vibration feedback on or off"
+              />
+            </View>
+          )}
+
           {/* Vibration Intensity */}
-          <Pressable
+          {feedbackPrefs.hapticsEnabled && <Pressable
             onPress={() => {
               triggerHaptic('tap', feedbackPrefs.hapticsEnabled);
               setExpandedSlider((prev) =>
@@ -167,9 +193,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <VibrationPhoneIcon size={26} color={colors.navy} />
             <Text style={styles.settingRowTitle}>Vibration Intensity</Text>
             <ChevronRightIcon size={16} color={colors.textMuted} />
-          </Pressable>
+          </Pressable>}
 
-          {expandedSlider === 'vibration' && (
+          {feedbackPrefs.hapticsEnabled && expandedSlider === 'vibration' && (
             <IntensitySlider
               value={feedbackPrefs.vibrationIntensity}
               onChange={(vibrationIntensity) => {

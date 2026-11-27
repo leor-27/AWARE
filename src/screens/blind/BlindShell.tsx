@@ -34,6 +34,7 @@ interface BlindShellProps {
   location: Coordinates;
   onLocationUpdate: (coords: Coordinates) => void;
   contacts: EmergencyContact[];
+  hasDemoSosData: boolean;
   onUpdateContacts: (contacts: EmergencyContact[]) => void;
   onDispatchSosAlert: (messageText: string) => void;
   recordings: VideoRecordingItem[];
@@ -52,6 +53,7 @@ export const BlindShell: React.FC<BlindShellProps> = ({
   location,
   onLocationUpdate,
   contacts,
+  hasDemoSosData,
   onUpdateContacts,
   onDispatchSosAlert,
   recordings,
@@ -62,9 +64,15 @@ export const BlindShell: React.FC<BlindShellProps> = ({
   onSignOut,
 }) => {
   const { width } = useWindowDimensions();
-  const clampedWidth = Math.min(width, 390);
+  const clampedWidth = Math.min(width, 370);
   const [activeTab, setActiveTab] = useState<MainTab>('vision');
   const [prevTab, setPrevTab] = useState<MainTab>('vision');
+  const [startEmergencySos, setStartEmergencySos] = useState(false);
+
+  const openEmergencyPreparation = () => {
+    setStartEmergencySos(true);
+    setActiveTab('location');
+  };
 
   const selectTab = (tab: MainTab, spokenLabel: string) => {
     if (tab !== activeTab) {
@@ -79,14 +87,19 @@ export const BlindShell: React.FC<BlindShellProps> = ({
     <SafeAreaView style={styles.root}>
       <View style={[styles.shell, { width: clampedWidth }]}>
         <View style={styles.body}>
-          {activeTab === 'vision' && (
+          <View
+            style={{
+              flex: 1,
+              display: activeTab === 'vision' ? 'flex' : 'none',
+            }}
+          >
             <SmartVisionScreen
               feedbackPrefs={feedbackPrefs}
-              contacts={contacts}
+              isVisible={activeTab === 'vision'}
               onSaveRecording={onSaveRecording}
-              onDispatchSosAlert={onDispatchSosAlert}
+              onStartEmergencySos={openEmergencyPreparation}
             />
-          )}
+          </View>
           {activeTab === 'recordings' && (
             <VideoRecordingsScreen
               recordings={recordings}
@@ -100,8 +113,12 @@ export const BlindShell: React.FC<BlindShellProps> = ({
               location={location}
               onLocationUpdate={onLocationUpdate}
               contacts={contacts}
+              hasDemoSosData={hasDemoSosData}
               onUpdateContacts={onUpdateContacts}
               onDispatchSosAlert={onDispatchSosAlert}
+              startEmergencySos={startEmergencySos}
+              onEmergencySosStarted={() => setStartEmergencySos(false)}
+              onReturnToSmartVision={() => setActiveTab('vision')}
             />
           )}
           {activeTab === 'profile' && (
@@ -110,6 +127,7 @@ export const BlindShell: React.FC<BlindShellProps> = ({
               onUpdateProfile={onUpdateProfile}
               feedbackPrefs={feedbackPrefs}
               onUpdatePrefs={onUpdatePrefs}
+              showVibrationToggle
               onBack={() => setActiveTab(prevTab === 'profile' ? 'vision' : prevTab)}
               onReplayOnboarding={onReplayOnboarding}
               onSwitchRole={onSwitchRole}

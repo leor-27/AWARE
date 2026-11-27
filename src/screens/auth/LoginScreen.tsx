@@ -48,7 +48,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   onGoToForgotPassword,
 }) => {
   const { width } = useWindowDimensions();
-  const clampedWidth = Math.min(width, 390);
+  const clampedWidth = Math.min(width, 370);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);

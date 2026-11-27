@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   Pressable,
-  ImageBackground,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,6 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
+import { OpenStreetMap } from '../../components/OpenStreetMap';
 import { AwareWordmark } from '../../components/AwareIllustrations';
 import { TabLocationIcon, TabProfileIcon, TabVideoIcon } from '../../components/AwareIcons';
 import { ProfileScreen } from '../profile/ProfileScreen';
@@ -32,6 +32,7 @@ export interface SosAlertEvent {
 
 interface TrustedDashboardScreenProps {
   profile: UserProfile;
+  hasDemoConnection: boolean;
   onUpdateProfile: (profile: UserProfile) => void;
   feedbackPrefs: FeedbackPreferences;
   onUpdatePrefs: (prefs: FeedbackPreferences) => void;
@@ -48,6 +49,7 @@ interface TrustedDashboardScreenProps {
 
 export const TrustedDashboardScreen: React.FC<TrustedDashboardScreenProps> = ({
   profile,
+  hasDemoConnection,
   onUpdateProfile,
   feedbackPrefs,
   onUpdatePrefs,
@@ -61,7 +63,7 @@ export const TrustedDashboardScreen: React.FC<TrustedDashboardScreenProps> = ({
   onSwitchRole,
 }) => {
   const { width } = useWindowDimensions();
-  const clampedWidth = Math.min(width, 390);
+  const clampedWidth = Math.min(width, 370);
   const [monitoring, setMonitoring] = useState(false);
   const [activeTab, setActiveTab] = useState<'recordings' | 'location' | 'profile'>('location');
 
@@ -138,6 +140,7 @@ export const TrustedDashboardScreen: React.FC<TrustedDashboardScreenProps> = ({
           )}
 
           {/* Connected Individual Live Status */}
+          {hasDemoConnection ? (
           <View style={styles.heroCard}>
             <View style={styles.personRow}>
               <View style={styles.avatar}>
@@ -157,10 +160,11 @@ export const TrustedDashboardScreen: React.FC<TrustedDashboardScreenProps> = ({
 
             {monitoring && <View style={styles.turnBanner}><Text style={styles.turnTitle}>↱  In 120 m</Text><Text style={styles.turnSub}>Jeremy will reach Magsaysay Ave.</Text></View>}
             <View style={styles.locationTitle}><Text style={styles.cardTitle}>{monitoring ? 'Jeremy’s Location' : 'Current Location'}</Text><Text style={styles.locationAddress}>Coffee Table, Magsaysay Avenue, Naga City</Text></View>
-            <ImageBackground source={monitoring ? require('../../../assets/location-monitor-contact.png') : require('../../../assets/location-map-contact.png')} resizeMode="cover" style={styles.mapPreview}>
+            <View style={styles.mapPreview}>
+              <OpenStreetMap center={location} style={StyleSheet.absoluteFill} />
               {monitoring && <Svg style={StyleSheet.absoluteFill} width="100%" height={260} viewBox="0 0 320 260"><Path d="M45 205 Q120 145 160 132 T250 70" stroke={colors.navy} strokeWidth="4" strokeDasharray="7 5" fill="none" /></Svg>}
               <Text style={styles.coordsCaption}>{location.latitude.toFixed(5)}°, {location.longitude.toFixed(5)}° · {monitoring ? '3.1 km · 9:17 AM' : 'Live'}</Text>
-            </ImageBackground>
+            </View>
 
             <View style={styles.quickActions}>
               <Pressable onPress={handleOpenMap} style={styles.secondaryAction}>
@@ -168,10 +172,18 @@ export const TrustedDashboardScreen: React.FC<TrustedDashboardScreenProps> = ({
               </Pressable>
             </View>
           </View>
+          ) : (
+            <View style={styles.heroCard}>
+              <Text style={styles.cardTitle}>No connected person yet</Text>
+              <Text style={styles.locationAddress}>
+                A person must add your account as their trusted contact before their location appears here.
+              </Text>
+            </View>
+          )}
 
-          {monitoring && <View style={styles.monitorCard}><View style={styles.monitorStats}><Text style={styles.monitorTime}>8 min</Text><Text style={styles.monitorInfo}>600 m · Walking  ·  Arrive at 9:25 AM</Text></View><Text style={styles.monitorDestination}>⚑  Coffee Table, Magsaysay Avenue, Naga City</Text><Pressable onPress={() => setMonitoring(false)} style={styles.endMonitoring}><Text style={styles.endMonitoringText}>End Monitoring</Text></Pressable></View>}
+          {hasDemoConnection && monitoring && <View style={styles.monitorCard}><View style={styles.monitorStats}><Text style={styles.monitorTime}>8 min</Text><Text style={styles.monitorInfo}>600 m · Walking  ·  Arrive at 9:25 AM</Text></View><Text style={styles.monitorDestination}>⚑  Coffee Table, Magsaysay Avenue, Naga City</Text><Pressable onPress={() => setMonitoring(false)} style={styles.endMonitoring}><Text style={styles.endMonitoringText}>End Monitoring</Text></Pressable></View>}
 
-          {!monitoring && <View style={styles.previousLocation}><View style={styles.previousHeader}><Text style={styles.cardTitle}>Previous Location</Text><Pressable onPress={handleOpenMap}><Text style={styles.viewAll}>View All →</Text></Pressable></View><Text style={styles.previousDate}>Today</Text><ImageBackground source={require('../../../assets/location-map-contact.png')} resizeMode="cover" style={styles.previousMap} /></View>}
+          {hasDemoConnection && !monitoring && <View style={styles.previousLocation}><View style={styles.previousHeader}><Text style={styles.cardTitle}>Previous Location</Text><Pressable onPress={handleOpenMap}><Text style={styles.viewAll}>View All →</Text></Pressable></View><Text style={styles.previousDate}>Today</Text><View style={styles.previousMap}><OpenStreetMap center={location} style={StyleSheet.absoluteFill} /></View></View>}
 
         </ScrollView>
           </>

@@ -20,6 +20,7 @@ import { colors, radii, spacing } from '../../theme/tokens';
 import {
   FeedbackPreferences,
   speakCue,
+  speakCueAndWait,
   triggerHaptic,
 } from '../../utils/feedback';
 
@@ -120,6 +121,12 @@ export const EmergencyHistoryFlow: React.FC<EmergencyHistoryFlowProps> = ({
   const selectedSession =
     sessions.find((s) => s.id === selectedId) ?? sessions[0] ?? null;
 
+  const formatDuration = (sec: number) => {
+    const mins = Math.floor(sec / 60);
+    const secs = sec % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
+
   useEffect(() => {
     if (subView !== 'recording' || !isPlaying || !selectedSession) return;
     const timer = setInterval(() => {
@@ -134,11 +141,31 @@ export const EmergencyHistoryFlow: React.FC<EmergencyHistoryFlowProps> = ({
     return () => clearInterval(timer);
   }, [subView, isPlaying, selectedSession]);
 
-  const formatDuration = (sec: number) => {
-    const mins = Math.floor(sec / 60);
-    const secs = sec % 60;
-    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-  };
+  useEffect(() => {
+    let announcement = '';
+    if (subView === 'list') {
+      announcement = sessions.length
+        ? `Emergency history. ${sessions.length} saved ${sessions.length === 1 ? 'session' : 'sessions'}, newest first.`
+        : 'Emergency history. No saved sessions. Future emergency sessions will appear here.';
+    } else if (subView === 'details' && selectedSession) {
+      announcement = `Session details. ${selectedSession.fullRange}. Location: ${selectedSession.locationLabel}. ${selectedSession.summaryLine}.`;
+    } else if (subView === 'attempt-log' && selectedSession) {
+      announcement = `Sending attempts. ${selectedSession.fullDate}. ${selectedSession.sendingResults.join('. ')}.`;
+    } else if (subView === 'recording' && selectedSession) {
+      announcement = `Emergency recording. ${formatDuration(selectedSession.recordingDurationSec)} duration. Available on this device. Upload pending.`;
+    } else if (subView === 'upload-status' && selectedSession) {
+      announcement = `Recording upload. Waiting for a connection. ${formatDuration(selectedSession.recordingDurationSec)} recording. Upload pending.`;
+    } else if (subView === 'delete-confirm' && selectedSession) {
+      announcement = `Delete this session? ${selectedSession.fullDate}. This removes session history, location data, and associated recordings. This cannot be undone.`;
+    } else if (subView === 'clear-confirm') {
+      announcement = 'Clear emergency history? This removes every saved session and associated recording. This cannot be undone.';
+    } else if (subView === 'deletion-pending') {
+      announcement = 'Deletion pending. Local data was removed. Cloud deletion is waiting for a connection.';
+    } else if (subView === 'deletion-status') {
+      announcement = 'Deletion status. Local data has been removed. Cloud deletion is still pending until a connection is available.';
+    }
+    if (announcement) void speakCueAndWait(announcement, feedbackPrefs);
+  }, [subView, sessions, selectedSession, feedbackPrefs]);
 
   /* 1. DELETION STATUS */
   if (subView === 'deletion-status') {
@@ -222,10 +249,6 @@ export const EmergencyHistoryFlow: React.FC<EmergencyHistoryFlowProps> = ({
             onPress={() => {
               triggerHaptic('tap', feedbackPrefs.hapticsEnabled);
               setSubView('deletion-status');
-              speakCue(
-                'Deletion status checked. Cloud deletion still pending.',
-                feedbackPrefs
-              );
             }}
             style={styles.outlinePillBtn}
           >
@@ -288,10 +311,6 @@ export const EmergencyHistoryFlow: React.FC<EmergencyHistoryFlowProps> = ({
               triggerHaptic('warning', feedbackPrefs.hapticsEnabled);
               onDeleteSession(selectedSession.id);
               setSubView('deletion-pending');
-              speakCue(
-                'Local data removed. Cloud deletion pending.',
-                feedbackPrefs
-              );
             }}
             style={styles.dangerPillBtn}
           >
@@ -314,7 +333,7 @@ export const EmergencyHistoryFlow: React.FC<EmergencyHistoryFlowProps> = ({
         </View>
         <View style={styles.actionsStack}>
           <Pressable onPress={() => { triggerHaptic('tap', feedbackPrefs.hapticsEnabled); setSubView('list'); }} style={styles.navyPillBtn}><Text style={styles.navyPillText}>Keep history</Text></Pressable>
-          <Pressable onPress={() => { triggerHaptic('warning', feedbackPrefs.hapticsEnabled); onClearHistory(); setSubView('list'); speakCue('Emergency history cleared.', feedbackPrefs); }} style={styles.outlinePillBtn}><Text style={styles.outlinePillText}>Clear all history</Text></Pressable>
+          <Pressable onPress={() => { triggerHaptic('warning', feedbackPrefs.hapticsEnabled); onClearHistory(); setSubView('list'); }} style={styles.outlinePillBtn}><Text style={styles.outlinePillText}>Clear all history</Text></Pressable>
         </View>
       </ScrollView>
     );

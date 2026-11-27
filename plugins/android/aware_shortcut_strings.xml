@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="aware_shortcut_service_description">Detects the Volume Up and Volume Down keys held together for 3 seconds to open AWARE SOS. Does not inspect screen content.</string>
+</resources>

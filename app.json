@@ -2,6 +2,7 @@
   "expo": {
     "name": "AWARE",
     "slug": "aware-app",
+    "scheme": "aware",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -29,10 +30,14 @@
         "ACCESS_COARSE_LOCATION",
         "VIBRATE"
       ],
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.anonymous.awareapp"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "./plugins/with-aware-sos-shortcut"
+    ]
   }
 }

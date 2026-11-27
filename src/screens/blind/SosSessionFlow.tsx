@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -23,6 +24,7 @@ import { colors, radii, spacing } from '../../theme/tokens';
 import {
   FeedbackPreferences,
   speakCue,
+  speakCueAndWait,
   triggerHaptic,
 } from '../../utils/feedback';
 import {
@@ -47,7 +49,10 @@ export type SosViewState =
   | 'ended'
   | 'history'
   | 'permissions'
-  | 'spoken-status';
+  | 'spoken-status'
+  | 'shortcut-setup'
+  | 'shortcut-practice'
+  | 'shortcut-practice-complete';
 
 interface SosSessionFlowProps {
   initialView?: SosViewState;
@@ -73,6 +78,7 @@ export const SosSessionFlow: React.FC<SosSessionFlowProps> = ({
   onReturnToSmartVision,
 }) => {
   const [view, setView] = useState<SosViewState>(initialView);
+  const lastEntryAnnouncementView = useRef<SosViewState | null>(null);
   const [returnBeforeEndConfirm, setReturnBeforeEndConfirm] =
     useState<SosViewState>('sending');
   const [sentCount, setSentCount] = useState(1);
@@ -94,54 +100,108 @@ export const SosSessionFlow: React.FC<SosSessionFlowProps> = ({
 
   // Auto-advance active SOS progression for realistic live feedback
   useEffect(() => {
-    if (view === 'sending') {
-      const timer = setTimeout(() => {
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      if (!url.startsWith('aware://shortcut-sos')) return;
+      const isPractice = view === 'shortcut-practice';
+      setView((current) =>
+        current === 'shortcut-practice' ? 'shortcut-practice-complete' : 'preparing'
+      );
+      triggerHaptic('success', feedbackPrefs.hapticsEnabled);
+      if (!isPractice) {
+        speakCue('SOS shortcut activated. Preparing your emergency message.', feedbackPrefs);
+      }
+    });
+    return () => subscription.remove();
+  }, [view, feedbackPrefs]);
+
+  useEffect(() => {
+    if (view !== 'sending' && view !== 'retrying') return;
+    let cancelled = false;
+
+    const advanceAfterAnnouncement = async () => {
+      const announcement =
+        view === 'sending'
+          ? `Sending SOS messages to ${contacts.length} ${contacts.length === 1 ? 'contact' : 'contacts'}. Your location is included.`
+          : `Retrying ${secondContact}. Attempt 2 of 3. The other contact was sent the message.`;
+
+      await Promise.all([
+        speakCueAndWait(announcement, feedbackPrefs),
+        new Promise<void>((resolve) => setTimeout(resolve, 2800)),
+      ]);
+      if (cancelled) return;
+
+      if (view === 'sending') {
         if (contacts.length >= 2) {
           setView('retrying');
           triggerHaptic('warning', feedbackPrefs.hapticsEnabled);
-          speakCue(
-            `Retrying 1 contact. Attempt 2 of 3 for ${secondContact}.`,
-            feedbackPrefs
-          );
         } else {
           setSentCount(contacts.length);
           setFailedCount(0);
           setView('sent');
           triggerHaptic('success', feedbackPrefs.hapticsEnabled);
-          speakCue('SOS messages sent.', feedbackPrefs);
         }
-      }, 2800);
-      return () => clearTimeout(timer);
-    }
+        return;
+      }
 
-    if (view === 'retrying') {
-      const timer = setTimeout(() => {
-        setSentCount(1);
-        setFailedCount(1);
-        setView('failed');
-        triggerHaptic('warning', feedbackPrefs.hapticsEnabled);
-        speakCue(
-          `1 message failed. ${secondContact} failed after 3 attempts.`,
-          feedbackPrefs
-        );
-      }, 2800);
-      return () => clearTimeout(timer);
+      setSentCount(1);
+      setFailedCount(1);
+      setView('failed');
+      triggerHaptic('warning', feedbackPrefs.hapticsEnabled);
+    };
+
+    void advanceAfterAnnouncement();
+    return () => {
+      cancelled = true;
+    };
+  }, [view, contacts.length, secondContact, feedbackPrefs]);
+
+  useEffect(() => {
+    if (lastEntryAnnouncementView.current === view) return;
+    lastEntryAnnouncementView.current = view;
+
+    let announcement = '';
+    if (view === 'sos-home') {
+      announcement = `Emergency SOS. Help is one action away. ${contacts.length} trusted ${contacts.length === 1 ? 'contact is' : 'contacts are'} saved.`;
+    } else if (view === 'contacts') {
+      announcement = contacts.length
+        ? `Emergency contacts. ${contacts.map((contact) => `${contact.name}, ${contact.relation}`).join('. ')}.`
+        : 'Emergency contacts. No contacts are saved. Add a trusted contact to receive SOS messages.';
+    } else if (view === 'permissions') {
+      announcement = 'Phone permissions. SMS and location access are allowed. SIM 1 is selected for sending.';
+    } else if (view === 'last-known') {
+      const deliverySummary = contacts.length
+        ? `Sending continues to ${contacts.map((contact) => contact.name).join(' and ')}.`
+        : 'No emergency contacts are configured.';
+      announcement = `Using last-known location. Current location could not be obtained. The SMS includes Naga City, captured at 9:05 AM. ${deliverySummary}`;
+    } else if (view === 'shortcut-setup') {
+      announcement = 'Shortcut practice. Practice does not send an SMS. Check the Android volume-key shortcut for conflicts with TalkBack before testing.';
+    } else if (view === 'shortcut-practice') {
+      announcement = 'Hold Volume Up and Volume Down together for 3 seconds. Practice does not send an SMS. The hardware shortcut requires the AWARE accessibility service on an Android build.';
+    } else if (view === 'shortcut-practice-complete') {
+      announcement = 'Shortcut practice complete. No emergency message was sent.';
     }
+    if (announcement) void speakCueAndWait(announcement, feedbackPrefs);
+  }, [view, contacts, feedbackPrefs]);
+
+  useEffect(() => {
+    if (view !== 'sent' && view !== 'failed') return;
+    const announcement = view === 'sent'
+      ? `SOS messages sent to ${contacts.length} of ${contacts.length} contacts.`
+      : `One message failed. ${secondContact} failed after 3 attempts. Check cellular service and SIM balance or plan.`;
+    void speakCueAndWait(announcement, feedbackPrefs);
   }, [view, contacts.length, secondContact, feedbackPrefs]);
 
   const startSosCallSession = async (firstView: 'contacting' | 'sending' = 'contacting') => {
     if (contacts.length === 0) {
       triggerHaptic('warning', feedbackPrefs.hapticsEnabled);
-      speakCue('No emergency contacts saved. Opening SOS setup.', feedbackPrefs);
       setView('contacts');
       return;
     }
 
     triggerHaptic('sos', feedbackPrefs.hapticsEnabled);
-    speakCue(
-      `SOS call in progress. Contacting ${firstContact}.`,
-      feedbackPrefs
-    );
+    if (firstView === 'contacting') {
+      speakCue(`SOS call in progress. Contacting ${firstContact}.`, feedbackPrefs);
+    }
     setView(firstView);
 
     const smsText = `AWARE SOS ALERT: Immediate help needed near Magsaysay Avenue, Naga City (${location.latitude.toFixed(
@@ -242,6 +302,66 @@ export const SosSessionFlow: React.FC<SosSessionFlowProps> = ({
     );
   }
 
+  if (view === 'shortcut-setup') {
+    return (
+      <ScrollView style={styles.root} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.topIconTile}><PhoneOutlineIcon size={22} color={colors.sage} /></View>
+        <Text style={styles.heading}>Shortcut practice</Text>
+        <Text style={styles.subheading}>Practice does not send an SMS.</Text>
+        <View style={styles.blueCard}>
+          <View style={styles.cardHeaderRow}><WarningTriangleIcon size={20} color={colors.sage} /><Text style={styles.cardTitle}>Before you test</Text></View>
+          <Text style={styles.cardLine}>Check the Android volume-key accessibility shortcut for conflicts with TalkBack.</Text>
+        </View>
+        <View style={styles.sageCard}>
+          <View style={styles.cardHeaderRow}><PhoneOutlineIcon size={20} color={colors.sage} /><Text style={styles.cardTitle}>Hold both buttons</Text></View>
+          <Text style={styles.cardLine}>Press Volume Up + Volume Down together for 3 seconds.</Text>
+        </View>
+        <View style={styles.blueCard}>
+          <Text style={styles.cardTitle}>Android setup</Text>
+          <Text style={styles.cardLine}>Enable the AWARE SOS shortcut service in Android Settings → Accessibility, then turn off TalkBack’s volume-key shortcut to avoid a conflict. The browser preview and Expo Go cannot detect volume buttons.</Text>
+        </View>
+        <View style={styles.actionsStack}>
+          <Pressable onPress={() => setView('shortcut-practice')} style={styles.navyPillBtn}>
+            <Text style={styles.navyPillText}>Start practice</Text>
+          </Pressable>
+          <Pressable onPress={() => setView('sos-home')} style={styles.outlinePillBtn}>
+            <Text style={styles.outlinePillText}>Back to readiness</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    );
+  }
+
+  if (view === 'shortcut-practice') {
+    return (
+      <ScrollView style={styles.root} contentContainerStyle={styles.practiceContent} showsVerticalScrollIndicator={false}>
+        <Text style={styles.practiceInstruction}>Volume up and down button is pressed for 3 seconds</Text>
+        <View style={styles.practiceIllustration}>
+          <View style={styles.practicePhone}><View style={styles.practiceSpeaker} /><PhoneOutlineIcon size={54} color={colors.sage} /></View>
+          <View style={styles.practiceKeys}><View style={styles.practiceKey} /><View style={styles.practiceKey} /></View>
+        </View>
+        <View style={styles.sageCard}><Text style={styles.cardTitle}>Practice only</Text><Text style={styles.cardLine}>This test does not send an SMS. Hold both volume buttons for 3 seconds on an Android build with the AWARE accessibility service enabled.</Text></View>
+        {Platform.OS === 'web' && <Text style={styles.noteText}>The browser preview cannot detect hardware volume keys.</Text>}
+        {Platform.OS === 'ios' && <Text style={styles.noteText}>The volume-button shortcut is available only on Android.</Text>}
+        <Pressable onPress={() => setView('shortcut-setup')} style={styles.outlinePillBtn}>
+          <Text style={styles.outlinePillText}>Back to practice setup</Text>
+        </Pressable>
+      </ScrollView>
+    );
+  }
+
+  if (view === 'shortcut-practice-complete') {
+    return (
+      <ScrollView style={styles.root} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.topIconTile}><CheckCircleOutlineIcon size={22} color={colors.sage} /></View>
+        <Text style={styles.heading}>Shortcut practice complete</Text>
+        <Text style={styles.subheading}>No emergency message was sent.</Text>
+        <View style={styles.sageCard}><Text style={styles.cardTitle}>Volume shortcut recognized</Text><Text style={styles.cardLine}>The SOS shortcut is ready to use on this Android device.</Text></View>
+        <Pressable onPress={() => setView('sos-home')} style={styles.navyPillBtn}><Text style={styles.navyPillText}>Back to Emergency SOS</Text></Pressable>
+      </ScrollView>
+    );
+  }
+
   if (view === 'preparing') {
     return (
       <ScrollView
@@ -333,9 +453,9 @@ export const SosSessionFlow: React.FC<SosSessionFlowProps> = ({
         </View>
 
         <Pressable
-          onPress={() => void startSosCallSession()}
+          onPress={() => setView('shortcut-setup')}
           accessibilityRole="button"
-          accessibilityLabel="Hold volume up and down together for 3 seconds to start an SOS call. Tap to start SOS session."
+          accessibilityLabel="Set up and practice the volume-button SOS shortcut"
           style={({ pressed }) => [
             styles.blueCard,
             pressed && { opacity: 0.85 },
@@ -346,7 +466,7 @@ export const SosSessionFlow: React.FC<SosSessionFlowProps> = ({
             <Text style={styles.cardTitle}>Volume-button shortcut</Text>
           </View>
           <Text style={styles.cardLine}>
-            Hold volume up and down together for 3 seconds to start an SOS call.
+            Set up the Android shortcut and practice before using it.
           </Text>
         </Pressable>
 
@@ -431,10 +551,6 @@ export const SosSessionFlow: React.FC<SosSessionFlowProps> = ({
             onPress={() => {
               triggerHaptic('tap', feedbackPrefs.hapticsEnabled);
               setView('sending');
-              speakCue(
-                `Sending SOS to ${contacts.map((c) => c.name).join(' and ')}.`,
-                feedbackPrefs
-              );
             }}
             style={styles.navyPillBtn}
           >
@@ -715,10 +831,6 @@ export const SosSessionFlow: React.FC<SosSessionFlowProps> = ({
               setSentCount(contacts.length);
               setFailedCount(0);
               setView('sent');
-              speakCue(
-                `Retry succeeded. SOS messages sent to ${contacts.length} of ${contacts.length} contacts.`,
-                feedbackPrefs
-              );
             }}
             style={styles.navyPillBtn}
           >
@@ -1003,6 +1115,53 @@ const styles = StyleSheet.create({
     backgroundColor: '#B32632',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  practiceContent: {
+    flexGrow: 1,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xxl,
+    paddingBottom: spacing.xl,
+    justifyContent: 'space-between',
+    gap: 24,
+  },
+  practiceInstruction: {
+    fontSize: 24,
+    lineHeight: 32,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  practiceIllustration: {
+    flex: 1,
+    minHeight: 260,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  practicePhone: {
+    width: 132,
+    height: 220,
+    borderWidth: 5,
+    borderColor: colors.sage,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 38,
+  },
+  practiceSpeaker: {
+    width: 48,
+    height: 4,
+    borderRadius: 4,
+    backgroundColor: colors.sage,
+  },
+  practiceKeys: {
+    gap: 18,
+  },
+  practiceKey: {
+    width: 16,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: colors.sage,
   },
   heading: {
     fontSize: 22,

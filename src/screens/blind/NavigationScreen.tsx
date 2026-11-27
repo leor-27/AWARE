@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  Linking,
   Platform,
   Pressable,
   StyleSheet,
@@ -61,6 +62,14 @@ export const NavigationScreen: React.FC<NavigationScreenProps> = ({
     startEmergencySos ? 'preparing' : null
   );
   const [routeMode, setRouteMode] = useState<'location' | 'locating' | 'destination-located' | 'navigation'>('location');
+
+  useEffect(() => {
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      if (!url.startsWith('aware://shortcut-sos')) return;
+      setSosInitialView((current) => current ?? 'preparing');
+    });
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     if (!startEmergencySos) return;

@@ -60,7 +60,7 @@ const PERMISSION_STEPS: PermissionStep[] = [
     description:
       'Location Access allows AWARE to use your device’s location to track and provide location updates.',
     bullets: [
-      'Only active when Navigation and Mapping is enabled',
+      'Only active when Navigation is enabled',
       'Maps surrounding paths and tracks your location in real time',
       'Guides you directly to nearby emergency facilities like hospitals and police stations',
     ],

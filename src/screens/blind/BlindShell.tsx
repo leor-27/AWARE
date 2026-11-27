@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  Linking,
   Pressable,
   StyleSheet,
   useWindowDimensions,
@@ -68,6 +69,16 @@ export const BlindShell: React.FC<BlindShellProps> = ({
   const [activeTab, setActiveTab] = useState<MainTab>('vision');
   const [prevTab, setPrevTab] = useState<MainTab>('vision');
   const [startEmergencySos, setStartEmergencySos] = useState(false);
+  const [visionResumeKey, setVisionResumeKey] = useState(0);
+
+  useEffect(() => {
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      if (!url.startsWith('aware://shortcut-sos') || activeTab === 'location') return;
+      setStartEmergencySos(true);
+      setActiveTab('location');
+    });
+    return () => subscription.remove();
+  }, [activeTab]);
 
   const openEmergencyPreparation = () => {
     setStartEmergencySos(true);
@@ -94,8 +105,10 @@ export const BlindShell: React.FC<BlindShellProps> = ({
             }}
           >
             <SmartVisionScreen
+              key={visionResumeKey}
               feedbackPrefs={feedbackPrefs}
               isVisible={activeTab === 'vision'}
+              initiallyActive={visionResumeKey > 0}
               onSaveRecording={onSaveRecording}
               onStartEmergencySos={openEmergencyPreparation}
             />
@@ -118,7 +131,11 @@ export const BlindShell: React.FC<BlindShellProps> = ({
               onDispatchSosAlert={onDispatchSosAlert}
               startEmergencySos={startEmergencySos}
               onEmergencySosStarted={() => setStartEmergencySos(false)}
-              onReturnToSmartVision={() => setActiveTab('vision')}
+              onReturnToSmartVision={() => {
+                setVisionResumeKey((key) => key + 1);
+                setActiveTab('vision');
+                speakCue('Smart Vision is active.', feedbackPrefs);
+              }}
             />
           )}
           {activeTab === 'profile' && (

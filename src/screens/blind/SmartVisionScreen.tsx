@@ -101,6 +101,7 @@ const FEEDBACK_ALERTS: FeedbackAlertItem[] = [
 interface SmartVisionScreenProps {
   feedbackPrefs: FeedbackPreferences;
   isVisible: boolean;
+  initiallyActive?: boolean;
   onSaveRecording: (isImportant: boolean) => void;
   onStartEmergencySos: () => void;
 }
@@ -108,12 +109,15 @@ interface SmartVisionScreenProps {
 export const SmartVisionScreen: React.FC<SmartVisionScreenProps> = ({
   feedbackPrefs,
   isVisible,
+  initiallyActive = false,
   onSaveRecording,
   onStartEmergencySos,
 }) => {
-  const [status, setStatus] = useState<VisionStatus>('idle');
+  const [status, setStatus] = useState<VisionStatus>(
+    initiallyActive ? 'detecting' : 'idle'
+  );
   const [alertIndex, setAlertIndex] = useState(0);
-  const [scanRun, setScanRun] = useState(0);
+  const [scanRun, setScanRun] = useState(initiallyActive ? 1 : 0);
   const [completedFeedbackKey, setCompletedFeedbackKey] = useState('');
   const [showDeactivateModal, setShowDeactivateModal] = useState(false);
 

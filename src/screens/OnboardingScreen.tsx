@@ -48,8 +48,8 @@ const SLIDES: OnboardingSlide[] = [
   },
   {
     id: 'navigation-mapping',
-    title: 'Navigation and\nMapping',
-    leadBold: 'Navigation and Mapping',
+    title: 'Navigation',
+    leadBold: 'Navigation',
     description:
       ' monitors user movement to offer reliable location tracking, route guidance, and overall spatial awareness.',
     renderIcon: () => <NavigationPinIcon size={126} color={colors.sage} />,
@@ -59,7 +59,7 @@ const SLIDES: OnboardingSlide[] = [
     title: 'Audio and Vibration\nFeedback',
     leadBold: 'Audio and Vibration Feedback',
     description:
-      ' serves as the device’s output mechanism for object and obstacle detection, distance estimation, navigation and mapping, and emergency assistance that translates environmental data into clear audio and vibration alerts, ensuring safe and independent navigation.',
+      ' serves as the device’s output mechanism for object and obstacle detection, distance estimation, navigation, and emergency assistance that translates environmental data into clear audio and vibration alerts, ensuring safe and independent navigation.',
     renderIcon: () => <AudioVibrationIcon size={126} color={colors.sage} />,
   },
 ];

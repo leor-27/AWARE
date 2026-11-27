@@ -1,21 +1,23 @@
 import React, { useState } from 'react';
 import {
-  Linking,
   Pressable,
+  ImageBackground,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Circle, Line, Path } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 import { AwareWordmark } from '../../components/AwareIllustrations';
+import { TabLocationIcon, TabProfileIcon, TabVideoIcon } from '../../components/AwareIcons';
+import { ProfileScreen } from '../profile/ProfileScreen';
+import { UserProfile } from '../auth/LoginScreen';
+import { VideoRecordingItem, VideoRecordingsScreen } from '../blind/VideoRecordingsScreen';
 import { colors, radii, spacing } from '../../theme/tokens';
 import {
   FeedbackPreferences,
-  speakCue,
   triggerHaptic,
 } from '../../utils/feedback';
 import { Coordinates } from '../blind/NavigationScreen';
@@ -29,7 +31,13 @@ export interface SosAlertEvent {
 }
 
 interface TrustedDashboardScreenProps {
+  profile: UserProfile;
+  onUpdateProfile: (profile: UserProfile) => void;
   feedbackPrefs: FeedbackPreferences;
+  onUpdatePrefs: (prefs: FeedbackPreferences) => void;
+  recordings: VideoRecordingItem[];
+  onToggleImportantRecording: (id: string) => void;
+  onSignOut: () => void;
   location: Coordinates;
   alerts: SosAlertEvent[];
   onAcknowledgeAlert: (id: string) => void;
@@ -39,40 +47,36 @@ interface TrustedDashboardScreenProps {
 }
 
 export const TrustedDashboardScreen: React.FC<TrustedDashboardScreenProps> = ({
+  profile,
+  onUpdateProfile,
   feedbackPrefs,
+  onUpdatePrefs,
+  recordings,
+  onToggleImportantRecording,
+  onSignOut,
   location,
   alerts,
   onAcknowledgeAlert,
-  onSimulateIncomingAlert,
   onReplayOnboarding,
   onSwitchRole,
 }) => {
   const { width } = useWindowDimensions();
-  const clampedWidth = Math.min(width, 460);
-  const [arrivalNotify, setArrivalNotify] = useState(true);
-  const [sosAutoRetryNotify, setSosAutoRetryNotify] = useState(true);
-  const [checkInSent, setCheckInSent] = useState(false);
+  const clampedWidth = Math.min(width, 390);
+  const [monitoring, setMonitoring] = useState(false);
+  const [activeTab, setActiveTab] = useState<'recordings' | 'location' | 'profile'>('location');
 
   const activeAlerts = alerts.filter((a) => !a.acknowledged);
 
   const handleOpenMap = () => {
     triggerHaptic('tap', feedbackPrefs.hapticsEnabled);
-    const url = `https://maps.google.com/?q=${location.latitude.toFixed(
-      5
-    )},${location.longitude.toFixed(5)}`;
-    Linking.openURL(url).catch(() => {});
-  };
-
-  const handleSendCheckIn = () => {
-    triggerHaptic('success', feedbackPrefs.hapticsEnabled);
-    setCheckInSent(true);
-    speakCue('Check-in notification sent to Elena.', feedbackPrefs);
-    setTimeout(() => setCheckInSent(false), 3000);
+    setMonitoring(true);
   };
 
   return (
     <SafeAreaView style={styles.root}>
       <View style={[styles.shell, { width: clampedWidth }]}>
+        {activeTab === 'location' && (
+          <>
         {/* Top Bar */}
         <View style={styles.topBar}>
           <View style={styles.brandRow}>
@@ -96,6 +100,12 @@ export const TrustedDashboardScreen: React.FC<TrustedDashboardScreenProps> = ({
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
+          {!monitoring && <View style={styles.greeting}>
+            <Text style={styles.greetingTitle}>
+              Hi, {profile.name.trim().split(/\s+/)[0] || 'there'}!
+            </Text>
+            <Text style={styles.greetingCaption}>What would you like to check on today?</Text>
+          </View>}
           {/* Active Emergency Alert Banner */}
           {activeAlerts.length > 0 && (
             <View style={styles.alertBanner}>
@@ -131,12 +141,12 @@ export const TrustedDashboardScreen: React.FC<TrustedDashboardScreenProps> = ({
           <View style={styles.heroCard}>
             <View style={styles.personRow}>
               <View style={styles.avatar}>
-                <Text style={styles.avatarText}>EV</Text>
+                <Text style={styles.avatarText}>JC</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.personName}>Elena Vance</Text>
+                <Text style={styles.personName}>Jeremy L. Cinco</Text>
                 <Text style={styles.personStatus}>
-                  Navigating to Oak St. Transit Stop · 84% Battery
+                  {monitoring ? 'Walking to Magsaysay Avenue' : 'Chose you as their Trusted Contact'}
                 </Text>
               </View>
               <View style={styles.liveChip}>
@@ -145,114 +155,63 @@ export const TrustedDashboardScreen: React.FC<TrustedDashboardScreenProps> = ({
               </View>
             </View>
 
-            <View style={styles.mapPreview}>
-              <Svg width="100%" height={128} viewBox="0 0 320 128">
-                <Line x1="0" y1="64" x2="320" y2="64" stroke="#DCE5EF" strokeWidth="6" />
-                <Line x1="160" y1="0" x2="160" y2="128" stroke="#DCE5EF" strokeWidth="6" />
-                <Path
-                  d="M78 96 Q140 72 160 64 T244 36"
-                  stroke={colors.navy}
-                  strokeWidth="3"
-                  strokeDasharray="6 5"
-                  fill="none"
-                />
-                <Circle cx="160" cy="64" r="18" fill="rgba(23,75,138,0.16)" />
-                <Circle cx="160" cy="64" r="7" fill={colors.navy} />
-                <Circle cx="244" cy="36" r="6" fill={colors.sage} />
-              </Svg>
-              <Text style={styles.coordsCaption}>
-                {location.latitude.toFixed(5)}°, {location.longitude.toFixed(5)}° · Market St Corridor
-              </Text>
-            </View>
+            {monitoring && <View style={styles.turnBanner}><Text style={styles.turnTitle}>↱  In 120 m</Text><Text style={styles.turnSub}>Jeremy will reach Magsaysay Ave.</Text></View>}
+            <View style={styles.locationTitle}><Text style={styles.cardTitle}>{monitoring ? 'Jeremy’s Location' : 'Current Location'}</Text><Text style={styles.locationAddress}>Coffee Table, Magsaysay Avenue, Naga City</Text></View>
+            <ImageBackground source={monitoring ? require('../../../assets/location-monitor-contact.png') : require('../../../assets/location-map-contact.png')} resizeMode="cover" style={styles.mapPreview}>
+              {monitoring && <Svg style={StyleSheet.absoluteFill} width="100%" height={260} viewBox="0 0 320 260"><Path d="M45 205 Q120 145 160 132 T250 70" stroke={colors.navy} strokeWidth="4" strokeDasharray="7 5" fill="none" /></Svg>}
+              <Text style={styles.coordsCaption}>{location.latitude.toFixed(5)}°, {location.longitude.toFixed(5)}° · {monitoring ? '3.1 km · 9:17 AM' : 'Live'}</Text>
+            </ImageBackground>
 
             <View style={styles.quickActions}>
               <Pressable onPress={handleOpenMap} style={styles.secondaryAction}>
-                <Text style={styles.secondaryActionText}>Track on Map</Text>
-              </Pressable>
-              <Pressable onPress={handleSendCheckIn} style={styles.primaryAction}>
-                <Text style={styles.primaryActionText}>
-                  {checkInSent ? 'Check-in Sent' : 'Send Check-in'}
-                </Text>
+                <Text style={styles.secondaryActionText}>{monitoring ? 'Monitoring' : 'Monitor'}</Text>
               </Pressable>
             </View>
           </View>
 
-          {/* Emergency Communication Log */}
-          <View style={styles.card}>
-            <View style={styles.cardHeaderRow}>
-              <Text style={styles.cardTitle}>Trusted Circle Activity</Text>
-              <Pressable
-                onPress={() => {
-                  triggerHaptic('sos', feedbackPrefs.hapticsEnabled);
-                  onSimulateIncomingAlert();
-                }}
-              >
-                <Text style={styles.simLink}>Simulate SOS</Text>
-              </Pressable>
-            </View>
+          {monitoring && <View style={styles.monitorCard}><View style={styles.monitorStats}><Text style={styles.monitorTime}>8 min</Text><Text style={styles.monitorInfo}>600 m · Walking  ·  Arrive at 9:25 AM</Text></View><Text style={styles.monitorDestination}>⚑  Coffee Table, Magsaysay Avenue, Naga City</Text><Pressable onPress={() => setMonitoring(false)} style={styles.endMonitoring}><Text style={styles.endMonitoringText}>End Monitoring</Text></Pressable></View>}
 
-            {alerts.length === 0 ? (
-              <Text style={styles.mutedText}>
-                No recent SOS alerts. All navigation sessions are normal.
-              </Text>
-            ) : (
-              alerts.map((item) => (
-                <View key={item.id} style={styles.logItem}>
-                  <View style={styles.logTopRow}>
-                    <Text style={styles.logTitle}>
-                      {item.acknowledged ? 'Acknowledged SOS' : 'Active SOS Alert'}
-                    </Text>
-                    <Text style={styles.logTime}>{item.timestamp}</Text>
-                  </View>
-                  <Text style={styles.logBody}>{item.message}</Text>
-                </View>
-              ))
-            )}
-          </View>
+          {!monitoring && <View style={styles.previousLocation}><View style={styles.previousHeader}><Text style={styles.cardTitle}>Previous Location</Text><Pressable onPress={handleOpenMap}><Text style={styles.viewAll}>View All →</Text></Pressable></View><Text style={styles.previousDate}>Today</Text><ImageBackground source={require('../../../assets/location-map-contact.png')} resizeMode="cover" style={styles.previousMap} /></View>}
 
-          {/* Notification Preferences */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Support Preferences</Text>
-            <View style={styles.switchRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.switchTitle}>Route Arrival Alerts</Text>
-                <Text style={styles.switchSub}>
-                  Notify when Elena reaches saved destinations.
-                </Text>
-              </View>
-              <Switch
-                value={arrivalNotify}
-                onValueChange={setArrivalNotify}
-                trackColor={{ false: '#CBD2CE', true: colors.navy }}
-              />
-            </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.switchRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.switchTitle}>SOS SMS Retry Receipts</Text>
-                <Text style={styles.switchSub}>
-                  Show delivery retry status if cellular signal drops.
-                </Text>
-              </View>
-              <Switch
-                value={sosAutoRetryNotify}
-                onValueChange={setSosAutoRetryNotify}
-                trackColor={{ false: '#CBD2CE', true: colors.navy }}
-              />
-            </View>
-          </View>
-
-          <View style={styles.navActions}>
-            <Pressable onPress={onReplayOnboarding} style={styles.outlineBtn}>
-              <Text style={styles.outlineBtnText}>Replay Feature Tour</Text>
-            </Pressable>
-            <Pressable onPress={onSwitchRole} style={styles.outlineBtn}>
-              <Text style={styles.outlineBtnText}>Switch Role</Text>
-            </Pressable>
-          </View>
         </ScrollView>
+          </>
+        )}
+
+        {activeTab === 'recordings' && (
+          <VideoRecordingsScreen
+            recordings={recordings}
+            feedbackPrefs={feedbackPrefs}
+            onToggleImportant={onToggleImportantRecording}
+          />
+        )}
+
+        {activeTab === 'profile' && (
+          <ProfileScreen
+            profile={profile}
+            onUpdateProfile={onUpdateProfile}
+            feedbackPrefs={feedbackPrefs}
+            onUpdatePrefs={onUpdatePrefs}
+            onBack={() => setActiveTab('location')}
+            onReplayOnboarding={onReplayOnboarding}
+            onSwitchRole={onSwitchRole}
+            onSignOut={onSignOut}
+          />
+        )}
+
+        <View style={styles.tabBar}>
+          <Pressable onPress={() => setActiveTab('recordings')} style={styles.tabButton} accessibilityRole="tab" accessibilityLabel="Recordings" accessibilityState={{ selected: activeTab === 'recordings' }}>
+            <TabVideoIcon size={27} color={activeTab === 'recordings' ? colors.navy : colors.sage} />
+            {activeTab === 'recordings' && <View style={styles.activeUnderline} />}
+          </Pressable>
+          <Pressable onPress={() => setActiveTab('location')} style={styles.tabButton} accessibilityRole="tab" accessibilityLabel="Location" accessibilityState={{ selected: activeTab === 'location' }}>
+            <TabLocationIcon size={27} color={activeTab === 'location' ? colors.navy : colors.sage} />
+            {activeTab === 'location' && <View style={styles.activeUnderline} />}
+          </Pressable>
+          <Pressable onPress={() => setActiveTab('profile')} style={styles.tabButton} accessibilityRole="tab" accessibilityLabel="Profile and settings" accessibilityState={{ selected: activeTab === 'profile' }}>
+            <TabProfileIcon size={27} active={activeTab === 'profile'} color={activeTab === 'profile' ? colors.navy : colors.sage} />
+            {activeTab === 'profile' && <View style={styles.activeUnderline} />}
+          </Pressable>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -292,7 +251,30 @@ const styles = StyleSheet.create({
   },
   switchBtnText: { fontSize: 12, fontWeight: '700', color: colors.navy },
   scroll: { flex: 1 },
+  tabBar: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', backgroundColor: colors.background, paddingTop: 10, paddingBottom: 12, borderTopWidth: 1, borderTopColor: 'rgba(100, 125, 112, 0.14)' },
+  tabButton: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 4, minHeight: 38 },
+  activeUnderline: { width: 28, height: 2, borderRadius: 1, backgroundColor: colors.navy, marginTop: 5 },
   content: { padding: spacing.md, paddingBottom: spacing.xl, gap: 14 },
+  greeting: { paddingHorizontal: 4, paddingTop: 5, paddingBottom: 3, gap: 5 },
+  greetingTitle: { color: colors.textPrimary, fontSize: 21, fontWeight: '600' },
+  greetingCaption: { color: colors.textPrimary, fontSize: 12.5 },
+  locationTitle: { gap: 6, paddingHorizontal: 4 },
+  locationAddress: { color: colors.textPrimary, fontSize: 12.5 },
+  turnBanner: { backgroundColor: colors.sage, borderRadius: 24, paddingHorizontal: 17, paddingVertical: 13, gap: 7 },
+  turnTitle: { color: colors.white, fontSize: 18, fontWeight: '700' },
+  turnSub: { color: colors.white, fontSize: 12.5 },
+  monitorCard: { backgroundColor: 'rgba(255,255,255,0.76)', borderWidth: 1, borderColor: '#DCE5EF', borderRadius: radii.md, padding: spacing.md, gap: 11 },
+  monitorStats: { flexDirection: 'row', alignItems: 'center', gap: 18 },
+  monitorTime: { color: colors.textPrimary, fontSize: 18, fontWeight: '700' },
+  monitorInfo: { color: colors.textSecondary, fontSize: 12.5, flex: 1 },
+  monitorDestination: { color: colors.textSecondary, fontSize: 13, borderTopWidth: 1, borderTopColor: '#D9DEDC', paddingTop: 10 },
+  endMonitoring: { alignSelf: 'center', borderWidth: 1, borderColor: colors.navy, backgroundColor: colors.background, borderRadius: radii.pill, paddingHorizontal: 28, paddingVertical: 10 },
+  endMonitoringText: { color: colors.navy, fontWeight: '600', fontSize: 13 },
+  previousLocation: { gap: 8, paddingHorizontal: 4 },
+  previousHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  viewAll: { color: colors.textSecondary, textDecorationLine: 'underline', fontSize: 12 },
+  previousDate: { color: colors.textPrimary, fontSize: 12 },
+  previousMap: { borderRadius: 14, overflow: 'hidden', backgroundColor: '#E6E8E4' },
   alertBanner: {
     backgroundColor: colors.danger,
     borderRadius: radii.lg,
@@ -362,6 +344,7 @@ const styles = StyleSheet.create({
   liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.success },
   liveChipText: { fontSize: 11.5, fontWeight: '700', color: colors.success },
   mapPreview: {
+    height: 260,
     backgroundColor: '#F3F7FB',
     borderRadius: radii.md,
     overflow: 'hidden',

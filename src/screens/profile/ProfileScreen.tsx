@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   Modal,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -42,21 +43,30 @@ const IntensitySlider: React.FC<{
   onChange: (nextValue: number) => void;
 }> = ({ value, onChange }) => {
   const [trackWidth, setTrackWidth] = useState(220);
-
-  const handleTrackPress = (locationX: number) => {
+  const handleTrackPress = useCallback((locationX: number) => {
     if (trackWidth <= 0) return;
-    const clamped = Math.max(0, Math.min(100, Math.round((locationX / trackWidth) * 100)));
+    const clamped = Math.max(
+      0,
+      Math.min(100, Math.round((locationX / trackWidth) * 100))
+    );
     onChange(clamped);
-  };
+  }, [onChange, trackWidth]);
+  const panResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: (event) => handleTrackPress(event.nativeEvent.locationX),
+    onPanResponderMove: (event) => handleTrackPress(event.nativeEvent.locationX),
+  }), [handleTrackPress]);
 
   return (
     <View style={styles.sliderRow}>
-      <Pressable
-        onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
-        onPress={(e) => handleTrackPress(e.nativeEvent.locationX)}
+      <View
+        onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}
+        {...panResponder.panHandlers}
         style={styles.sliderTouchArea}
         accessibilityRole="adjustable"
         accessibilityLabel={`Intensity ${value}`}
+        accessibilityValue={{ min: 0, max: 100, now: value }}
       >
         <View style={styles.sliderTrack} />
         <View
@@ -65,7 +75,7 @@ const IntensitySlider: React.FC<{
             { left: `${Math.max(0, Math.min(96, value))}%` },
           ]}
         />
-      </Pressable>
+      </View>
       <Text style={styles.sliderValueText}>{value}</Text>
     </View>
   );

@@ -22,6 +22,7 @@ import {
 import { SplashIllustration } from '../../components/AwareIllustrations';
 import { colors, radii, spacing } from '../../theme/tokens';
 import { FeedbackPreferences, speakCue, triggerHaptic } from '../../utils/feedback';
+import type { UserRole } from '../RoleSelectionScreen';
 
 export interface UserProfile {
   name: string;
@@ -31,6 +32,8 @@ export interface UserProfile {
 
 interface LoginScreenProps {
   feedbackPrefs: FeedbackPreferences;
+  role: UserRole;
+  accounts: Array<{ role: UserRole; email: string; password: string; profile: UserProfile }>;
   onLoginSuccess: (profile?: Partial<UserProfile>) => void;
   onGoToSignUp: () => void;
   onGoToForgotPassword: () => void;
@@ -38,27 +41,32 @@ interface LoginScreenProps {
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
   feedbackPrefs,
+  role,
+  accounts,
   onLoginSuccess,
   onGoToSignUp,
   onGoToForgotPassword,
 }) => {
   const { width } = useWindowDimensions();
-  const clampedWidth = Math.min(width, 460);
+  const clampedWidth = Math.min(width, 390);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loginError, setLoginError] = useState(false);
 
   const handleLogin = () => {
+    const trimmed = identifier.trim().toLowerCase();
+    const account = accounts.find(
+      (item) => item.role === role && item.email.toLowerCase() === trimmed && item.password === password
+    );
+    if (!account) {
+      setLoginError(true);
+      return;
+    }
+    setLoginError(false);
     triggerHaptic('success', feedbackPrefs.hapticsEnabled);
     speakCue('Logged in to AWARE.', feedbackPrefs);
-    const trimmed = identifier.trim();
-    if (trimmed.includes('@')) {
-      onLoginSuccess({ email: trimmed });
-    } else if (trimmed.length > 0) {
-      onLoginSuccess({ phone: trimmed });
-    } else {
-      onLoginSuccess();
-    }
+    onLoginSuccess(account.profile);
   };
 
   return (
@@ -80,13 +88,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             Welcome to <Text style={styles.titleBrand}>AWARE</Text>
           </Text>
           <Text style={styles.subtitle}>Explore the world, your way</Text>
-
           <View style={styles.form}>
             <View style={styles.inputPill}>
               <MailIcon size={18} color={colors.sage} />
               <TextInput
                 value={identifier}
-                onChangeText={setIdentifier}
+                onChangeText={(value) => { setIdentifier(value); setLoginError(false); }}
                 placeholder="Email or Phone Number"
                 placeholderTextColor={colors.sage}
                 autoCapitalize="none"
@@ -99,7 +106,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               <LockIcon size={18} color={colors.sage} />
               <TextInput
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(value) => { setPassword(value); setLoginError(false); }}
                 placeholder="Password"
                 placeholderTextColor={colors.sage}
                 secureTextEntry={!showPassword}
@@ -120,10 +127,21 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               </Pressable>
             </View>
 
+            {loginError && (
+              <View style={styles.loginErrorWrap}>
+                <Text style={styles.loginErrorText}>
+                  Account not found. Create an account first.
+                </Text>
+                <Pressable onPress={onGoToSignUp} accessibilityRole="link">
+                  <Text style={styles.loginErrorLink}>Create account</Text>
+                </Pressable>
+              </View>
+            )}
+
             <Pressable
               onPress={() => {
-                triggerHaptic('tap', feedbackPrefs.hapticsEnabled);
                 onGoToForgotPassword();
+                triggerHaptic('tap', feedbackPrefs.hapticsEnabled);
               }}
               style={styles.forgotWrap}
               accessibilityRole="link"
@@ -154,7 +172,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             <Pressable
               onPress={() => {
                 triggerHaptic('success', feedbackPrefs.hapticsEnabled);
-                onLoginSuccess();
+                setLoginError(true);
               }}
               style={styles.socialItem}
               accessibilityRole="button"
@@ -167,7 +185,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             <Pressable
               onPress={() => {
                 triggerHaptic('success', feedbackPrefs.hapticsEnabled);
-                onLoginSuccess({ name: 'Guest User' });
+                onLoginSuccess({ name: 'Guest User', email: '', phone: '' });
               }}
               style={styles.socialItem}
               accessibilityRole="button"
@@ -244,6 +262,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textPrimary,
     paddingVertical: 0,
+  },
+  loginErrorWrap: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  loginErrorText: {
+    color: colors.danger,
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  loginErrorLink: {
+    color: colors.navy,
+    fontSize: 12,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   forgotWrap: {
     alignSelf: 'flex-end',

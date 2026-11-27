@@ -19,10 +19,15 @@ export const EmergencySentModal: React.FC<EmergencySentModalProps> = ({
   contacts = [],
   onClose,
 }) => {
-  const displayContacts =
-    contacts.length > 0
-      ? contacts
-      : [{ id: 'default', name: 'Josephine DL. Santos', relation: 'Sister', phone: '09123456789', enabled: true }];
+  const primaryContact = contacts.find((contact) => contact.enabled) ?? contacts[0];
+  const displayContacts = [
+    primaryContact
+      ? {
+          ...primaryContact,
+          name: primaryContact.name === 'Josephine' ? 'Josephine DL. Santos' : primaryContact.name,
+        }
+      : { id: 'default', name: 'Josephine DL. Santos', relation: 'Sister', phone: '09123456789', enabled: true },
+  ];
 
   return (
     <Modal

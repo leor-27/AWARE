@@ -44,7 +44,9 @@ export type SosViewState =
   | 'sent'
   | 'end-confirm'
   | 'ended'
-  | 'history';
+  | 'history'
+  | 'permissions'
+  | 'spoken-status';
 
 interface SosSessionFlowProps {
   initialView?: SosViewState;
@@ -210,6 +212,31 @@ export const SosSessionFlow: React.FC<SosSessionFlowProps> = ({
     );
   }
 
+  if (view === 'permissions') {
+    return (
+      <ScrollView style={styles.root} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.topIconTile}><RetryCycleIcon size={22} color={colors.sage} /></View>
+        <Text style={styles.heading}>Phone permissions</Text>
+        <Text style={styles.subheading}>Review access used during an SOS.</Text>
+        <View style={styles.blueCard}><View style={styles.cardHeaderRow}><MapPinOutlineIcon size={20} color={colors.sage} /><Text style={styles.cardTitle}>SMS &amp; location</Text></View><Text style={styles.cardLine}>Allowed • Emergency messages can include your location.</Text></View>
+        <View style={styles.blueCard}><View style={styles.cardHeaderRow}><RetryCycleIcon size={20} color={colors.sage} /><Text style={styles.cardTitle}>Sending SIM</Text></View><Text style={styles.cardLine}>SIM 1 selected</Text></View>
+        <Pressable onPress={() => setView('sos-home')} style={styles.navyPillBtn}><Text style={styles.navyPillText}>Continue to SOS</Text></Pressable>
+      </ScrollView>
+    );
+  }
+
+  if (view === 'spoken-status') {
+    return (
+      <ScrollView style={styles.root} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.topIconTile}><ShieldCheckIcon size={22} color={colors.sage} /></View>
+        <Text style={styles.heading}>Current SOS status</Text>
+        <Text style={styles.subheading}>Feedback preview</Text>
+        <View style={styles.blueCard}><View style={styles.cardHeaderRow}><ShieldCheckIcon size={20} color={colors.sage} /><Text style={styles.cardTitle}>Status summary</Text></View><Text style={styles.cardLine}>Your emergency session is active. Check recipient status for the latest sending result.</Text></View>
+        <Pressable onPress={() => setView('sending')} style={styles.outlinePillBtn}><Text style={styles.outlinePillText}>Back to session</Text></Pressable>
+      </ScrollView>
+    );
+  }
+
   /* 1. EMERGENCY SOS HOME */
   if (view === 'sos-home') {
     return (
@@ -273,21 +300,22 @@ export const SosSessionFlow: React.FC<SosSessionFlowProps> = ({
           <Pressable
             onPress={() => {
               triggerHaptic('tap', feedbackPrefs.hapticsEnabled);
-              setView('history');
+              setView('permissions');
             }}
             style={styles.outlinePillBtn}
           >
+            <Text style={styles.outlinePillText}>Phone permissions</Text>
+          </Pressable>
+
+          <Pressable onPress={() => setView('history')} style={styles.outlinePillBtn}>
             <Text style={styles.outlinePillText}>Emergency history</Text>
           </Pressable>
 
           <Pressable
             onPress={() => {
-              triggerHaptic('sos', feedbackPrefs.hapticsEnabled);
-              speakCue(
-                `SOS feedback active. ${contacts.length} trusted contacts configured.`,
-                feedbackPrefs
-              );
-              startSosCallSession();
+              triggerHaptic('tap', feedbackPrefs.hapticsEnabled);
+              speakCue(`SOS feedback active. ${contacts.length} trusted contacts configured.`, feedbackPrefs);
+              setView('spoken-status');
             }}
             style={styles.outlinePillBtn}
           >

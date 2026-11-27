@@ -50,6 +50,45 @@ export function speakCue(
   }
 }
 
+export function speakCueAndWait(
+  message: string,
+  prefs: Pick<FeedbackPreferences, 'voiceEnabled' | 'speechRate' | 'audioIntensity'>
+): Promise<void> {
+  if (!prefs.voiceEnabled || prefs.audioIntensity <= 0 || !message.trim()) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    let finished = false;
+    let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      resolve();
+    };
+    const speak = async () => {
+      try {
+        const estimatedSpeechMs =
+          (message.trim().split(/\s+/).length * 900) / Math.max(0.5, prefs.speechRate);
+        fallbackTimer = setTimeout(finish, Math.max(30000, estimatedSpeechMs + 15000));
+        Speech.speak(message, {
+          language: 'en-US',
+          rate: prefs.speechRate,
+          pitch: 1.0,
+          volume: Math.max(0.1, Math.min(1, prefs.audioIntensity / 100)),
+          onDone: finish,
+          onStopped: finish,
+          onError: finish,
+        });
+      } catch {
+        finish();
+      }
+    };
+    void speak();
+  });
+}
+
 export function stopSpeaking(): void {
   try {
     Speech.stop();

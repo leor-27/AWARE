@@ -62,7 +62,7 @@ export const BlindShell: React.FC<BlindShellProps> = ({
   onSignOut,
 }) => {
   const { width } = useWindowDimensions();
-  const clampedWidth = Math.min(width, 460);
+  const clampedWidth = Math.min(width, 390);
   const [activeTab, setActiveTab] = useState<MainTab>('vision');
   const [prevTab, setPrevTab] = useState<MainTab>('vision');
 

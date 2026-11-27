@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -10,9 +10,9 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import {
   AlertExclamationCircleIcon,
   CarFrontIcon,
-  EmergencySirenIcon,
   HangingSignIcon,
   PersonBustIcon,
+  EmergencySirenIcon,
   PowerIcon,
 } from '../../components/AwareIcons';
 import { EmergencySentModal } from '../../components/EmergencySentModal';
@@ -20,6 +20,8 @@ import { colors, radii, spacing } from '../../theme/tokens';
 import {
   FeedbackPreferences,
   speakCue,
+  speakCueAndWait,
+  stopSpeaking,
   triggerHaptic,
 } from '../../utils/feedback';
 import { EmergencyContact } from './EmergencyScreen';
@@ -71,14 +73,6 @@ const FEEDBACK_ALERTS: FeedbackAlertItem[] = [
     haptic: 'warning',
   },
   {
-    id: 'car-300',
-    heading: 'Car Detected',
-    message: 'The Car is approximately 300 cm away',
-    otherCountText: '2 other objects detected',
-    iconType: 'car',
-    haptic: 'warning',
-  },
-  {
     id: 'car-caution-200',
     heading: 'Car Detected',
     prefix: 'CAUTION:',
@@ -88,18 +82,10 @@ const FEEDBACK_ALERTS: FeedbackAlertItem[] = [
     haptic: 'warning',
   },
   {
-    id: 'car-200',
-    heading: 'Car Detected',
-    message: 'The Car is approximately 200 cm away',
-    otherCountText: '1 other object detected',
-    iconType: 'car',
-    haptic: 'warning',
-  },
-  {
     id: 'car-critical',
     heading: 'Car Detected',
     prefix: 'CRITICAL:',
-    message: 'The Car is approximately 1 km away',
+    message: 'The Car is approximately 1 cm away',
     otherCountText: '1 other object detected',
     iconType: 'alert',
     haptic: 'sos',
@@ -129,10 +115,18 @@ export const SmartVisionScreen: React.FC<SmartVisionScreenProps> = ({
 }) => {
   const [status, setStatus] = useState<VisionStatus>('idle');
   const [alertIndex, setAlertIndex] = useState(0);
+  const [scanRun, setScanRun] = useState(0);
+  const [completedFeedbackKey, setCompletedFeedbackKey] = useState('');
+  const sosDispatchRef = useRef(onDispatchSosAlert);
+  useEffect(() => {
+    sosDispatchRef.current = onDispatchSosAlert;
+  }, [onDispatchSosAlert]);
   const [showDeactivateModal, setShowDeactivateModal] = useState(false);
   const [showEmergencySent, setShowEmergencySent] = useState(false);
 
   const currentAlert = FEEDBACK_ALERTS[alertIndex];
+  const feedbackKey = `${scanRun}:${alertIndex}:${feedbackPrefs.voiceEnabled}:${feedbackPrefs.speechRate}:${feedbackPrefs.audioIntensity}:${feedbackPrefs.hapticsEnabled}`;
+  const feedbackComplete = completedFeedbackKey === feedbackKey;
 
   useEffect(() => {
     if (status === 'detecting') {
@@ -155,21 +149,39 @@ export const SmartVisionScreen: React.FC<SmartVisionScreenProps> = ({
 
   useEffect(() => {
     if (status !== 'feedback') return;
+    let cancelled = false;
+    const startedAt = Date.now();
     const item = FEEDBACK_ALERTS[alertIndex];
-    triggerHaptic(item.haptic, feedbackPrefs.hapticsEnabled);
-    speakCue(
-      `${item.heading}. ${item.prefix ? `${item.prefix} ` : ''}${item.message}`,
-      feedbackPrefs
-    );
+    const announcement = `${item.heading}. ${item.prefix ? `${item.prefix} ` : ''}${item.message}. ${item.otherCountText}.`;
 
-    const timer = setTimeout(() => {
-      setAlertIndex((prev) => (prev + 1) % FEEDBACK_ALERTS.length);
-    }, 3600);
-    return () => clearTimeout(timer);
-  }, [status, alertIndex, feedbackPrefs]);
+    const deliverFeedback = async () => {
+      await Promise.all([
+        triggerHaptic(item.haptic, feedbackPrefs.hapticsEnabled),
+        speakCueAndWait(announcement, feedbackPrefs),
+      ]);
+      if (cancelled) return;
+
+      setCompletedFeedbackKey(feedbackKey);
+      if (item.id === 'emergency-siren') return;
+
+      const remainingDisplayTime = Math.max(0, 3600 - (Date.now() - startedAt));
+      if (remainingDisplayTime > 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, remainingDisplayTime));
+      }
+      if (!cancelled) {
+        setAlertIndex((prev) => (prev + 1) % FEEDBACK_ALERTS.length);
+      }
+    };
+
+    void deliverFeedback();
+    return () => {
+      cancelled = true;
+    };
+  }, [status, alertIndex, feedbackPrefs, feedbackKey]);
 
   const handleMainButtonPress = () => {
     if (status === 'idle') {
+      setScanRun((prev) => prev + 1);
       setStatus('detecting');
       triggerHaptic('success', feedbackPrefs.hapticsEnabled);
       speakCue(
@@ -179,7 +191,12 @@ export const SmartVisionScreen: React.FC<SmartVisionScreenProps> = ({
       return;
     }
 
-    if (status === 'feedback' && currentAlert.iconType === 'siren') {
+    if (status === 'feedback' && !feedbackComplete) return;
+
+    if (
+      status === 'feedback' &&
+      currentAlert.iconType === 'siren'
+    ) {
       triggerHaptic('sos', feedbackPrefs.hapticsEnabled);
       onDispatchSosAlert(
         'AWARE SOS ALERT: Emergency detected during Smart Vision scan.'
@@ -194,6 +211,7 @@ export const SmartVisionScreen: React.FC<SmartVisionScreenProps> = ({
   };
 
   const handleConfirmDeactivate = () => {
+    stopSpeaking();
     setShowDeactivateModal(false);
     setStatus('idle');
     setAlertIndex(0);
@@ -286,6 +304,7 @@ export const SmartVisionScreen: React.FC<SmartVisionScreenProps> = ({
         {/* Large concentric activation / alert circle */}
         <Pressable
           onPress={handleMainButtonPress}
+          disabled={status === 'feedback' && !feedbackComplete}
           onLongPress={() => {
             if (isActive) setShowDeactivateModal(true);
           }}
@@ -324,16 +343,20 @@ export const SmartVisionScreen: React.FC<SmartVisionScreenProps> = ({
         </Pressable>
 
         <Pressable
-          disabled={!isActive}
+          disabled={status !== 'detected' && !(status === 'feedback' && feedbackComplete)}
           onPress={() => {
             if (status === 'detected') {
               setAlertIndex(0);
               setStatus('feedback');
-            } else if (status === 'feedback') {
+            } else if (status === 'feedback' && feedbackComplete) {
               setAlertIndex((prev) => (prev + 1) % FEEDBACK_ALERTS.length);
             }
           }}
-          accessibilityRole={isActive ? 'button' : undefined}
+          accessibilityRole={
+            status === 'detected' || (status === 'feedback' && feedbackComplete)
+              ? 'button'
+              : undefined
+          }
           accessibilityLabel={bottomCaption}
         >
           <Text style={styles.bottomCaption}>{bottomCaption}</Text>
@@ -388,6 +411,7 @@ export const SmartVisionScreen: React.FC<SmartVisionScreenProps> = ({
         onClose={() => {
           setShowEmergencySent(false);
           setAlertIndex(0);
+          setStatus('detecting');
         }}
       />
     </View>

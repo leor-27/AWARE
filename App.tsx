@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { CreateAccountScreen } from './src/screens/auth/CreateAccountScreen';
 import { ForgotPasswordScreen } from './src/screens/auth/ForgotPasswordScreen';
@@ -34,6 +35,13 @@ type AppStage =
   | 'permissions'
   | 'app';
 
+interface StoredAccount {
+  role: UserRole;
+  email: string;
+  password: string;
+  profile: UserProfile;
+}
+
 const INITIAL_CONTACTS: EmergencyContact[] = [
   {
     id: 'c1',
@@ -64,6 +72,10 @@ const INITIAL_RECORDINGS: VideoRecordingItem[] = [
 ];
 
 export default function App() {
+  const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
+  const showDesktopPhoneFrame = Platform.OS === 'web' && viewportWidth > 600;
+  const appWidth = showDesktopPhoneFrame ? 390 : Math.min(viewportWidth, 390);
+  const fixedPreviewHeight = showDesktopPhoneFrame && viewportHeight >= 917;
   const [stage, setStage] = useState<AppStage>('splash');
   const [role, setRole] = useState<UserRole | null>(null);
   const [permissionsDone, setPermissionsDone] = useState(false);
@@ -72,6 +84,25 @@ export default function App() {
     email: 'jeremylcinco@gmail.com',
     phone: '(+63) 921-875-3137',
   });
+  const [trustedProfile, setTrustedProfile] = useState<UserProfile>({
+    name: 'Josephine DL. Santos',
+    email: 'josephinedlsantos@gmail.com',
+    phone: '09123456789',
+  });
+  const [accounts, setAccounts] = useState<StoredAccount[]>([
+    {
+      role: 'blind',
+      email: 'jeremylcinco@gmail.com',
+      password: 'jeremy',
+      profile: { name: 'Jeremy L. Cinco', email: 'jeremylcinco@gmail.com', phone: '(+63) 921-875-3137' },
+    },
+    {
+      role: 'trusted',
+      email: 'josephinedlsantos@gmail.com',
+      password: 'josephine',
+      profile: { name: 'Josephine DL. Santos', email: 'josephinedlsantos@gmail.com', phone: '09123456789' },
+    },
+  ]);
   const [feedbackPrefs, setFeedbackPrefs] = useState<FeedbackPreferences>(
     defaultFeedbackPreferences
   );
@@ -87,11 +118,13 @@ export default function App() {
 
   const handleAuthSuccess = (updates?: Partial<UserProfile>) => {
     if (updates) {
-      setProfile((prev) => ({
-        name: updates.name || prev.name,
-        email: updates.email || prev.email,
-        phone: updates.phone || prev.phone,
-      }));
+      const update = (prev: UserProfile): UserProfile => ({
+        name: updates.name ?? prev.name,
+        email: updates.email ?? prev.email,
+        phone: updates.phone ?? prev.phone,
+      });
+      if (role === 'trusted') setTrustedProfile(update);
+      else setProfile(update);
     }
     setStage(permissionsDone ? 'app' : 'permissions');
   };
@@ -160,7 +193,26 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="dark" />
+      <View
+        style={[
+          styles.previewStage,
+          showDesktopPhoneFrame && styles.desktopPreviewStage,
+        ]}
+      >
+        <View
+          style={[
+            styles.mobileFrame,
+            { width: appWidth },
+            showDesktopPhoneFrame && styles.desktopFrameClip,
+            showDesktopPhoneFrame &&
+              fixedPreviewHeight && {
+                height: 917,
+                flex: 0,
+              },
+          ]}
+        >
+        {showDesktopPhoneFrame && <View style={styles.phoneTopInset} />}
+        <StatusBar style="dark" />
 
       {stage === 'splash' && (
         <SplashScreen onFinish={() => setStage('onboarding')} />
@@ -187,6 +239,8 @@ export default function App() {
       {stage === 'login' && (
         <LoginScreen
           feedbackPrefs={feedbackPrefs}
+          role={role ?? 'blind'}
+          accounts={accounts}
           onLoginSuccess={handleAuthSuccess}
           onGoToSignUp={() => setStage('signup')}
           onGoToForgotPassword={() => setStage('forgot')}
@@ -196,7 +250,29 @@ export default function App() {
       {stage === 'signup' && (
         <CreateAccountScreen
           feedbackPrefs={feedbackPrefs}
-          onCreateSuccess={handleAuthSuccess}
+          onCreateSuccess={(updates, password) => {
+            if (password && updates.email && updates.name && role) {
+              const newAccount: StoredAccount = {
+                role,
+                email: updates.email.toLowerCase(),
+                password,
+                profile: {
+                  name: updates.name,
+                  email: updates.email.toLowerCase(),
+                  phone: updates.phone ?? '',
+                },
+              };
+              setAccounts((prev) => [
+                ...prev.filter((item) => !(item.role === role && item.email === newAccount.email)),
+                newAccount,
+              ]);
+              if (role === 'trusted') setTrustedProfile(newAccount.profile);
+              else setProfile(newAccount.profile);
+              setStage(permissionsDone ? 'app' : 'permissions');
+              return;
+            }
+            handleAuthSuccess(updates);
+          }}
           onGoToSignIn={() => setStage('login')}
         />
       )}
@@ -211,6 +287,7 @@ export default function App() {
       {stage === 'permissions' && (
         <PermissionFlowScreen
           feedbackPrefs={feedbackPrefs}
+          role={role ?? 'blind'}
           onComplete={() => {
             setPermissionsDone(true);
             setStage('app');
@@ -240,7 +317,13 @@ export default function App() {
 
       {stage === 'app' && role === 'trusted' && (
         <TrustedDashboardScreen
+          profile={trustedProfile}
+          onUpdateProfile={setTrustedProfile}
           feedbackPrefs={feedbackPrefs}
+          onUpdatePrefs={setFeedbackPrefs}
+          recordings={recordings}
+          onToggleImportantRecording={handleToggleImportantRecording}
+          onSignOut={() => setStage('login')}
           location={location}
           alerts={alerts}
           onAcknowledgeAlert={handleAcknowledgeAlert}
@@ -249,6 +332,56 @@ export default function App() {
           onSwitchRole={() => setStage('role')}
         />
       )}
+        {showDesktopPhoneFrame && (
+          <View pointerEvents="none" style={styles.phoneFrameOverlay}>
+            <View style={styles.phoneCamera} />
+            <View style={styles.phoneHomeIndicator} />
+          </View>
+        )}
+        </View>
+      </View>
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  previewStage: { flex: 1, width: '100%' },
+  desktopPreviewStage: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  mobileFrame: {
+    flex: 1,
+    alignSelf: 'center',
+    maxWidth: 390,
+    backgroundColor: '#F4F4F2',
+    position: 'relative',
+  },
+  desktopFrameClip: { overflow: 'hidden', borderRadius: 40 },
+  phoneTopInset: { height: 14, flexShrink: 0 },
+  phoneFrameOverlay: {
+    ...StyleSheet.absoluteFill,
+    borderWidth: 7,
+    borderColor: '#171717',
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  phoneCamera: {
+    position: 'absolute',
+    top: 12,
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: '#080808',
+  },
+  phoneHomeIndicator: {
+    position: 'absolute',
+    bottom: 10,
+    width: 60,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#171717',
+  },
+});

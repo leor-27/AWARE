@@ -22,7 +22,7 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
   onBack,
 }) => {
   const { width } = useWindowDimensions();
-  const clampedWidth = Math.min(width, 460);
+  const clampedWidth = Math.min(width, 390);
   const [mode, setMode] = useState<'phone' | 'email'>('phone');
   const [query, setQuery] = useState('');
   const [sentNotice, setSentNotice] = useState(false);
@@ -43,12 +43,10 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
       <View style={[styles.container, { width: clampedWidth }]}>
         <View style={styles.topRow}>
           <Pressable
-            onPress={() => {
-              triggerHaptic('tap', feedbackPrefs.hapticsEnabled);
-              onBack();
-            }}
+            onPress={onBack}
+            hitSlop={12}
             accessibilityRole="button"
-            accessibilityLabel="Go back to login"
+            accessibilityLabel="Back to login"
             style={styles.backFab}
           >
             <BackArrowIcon size={20} color={colors.white} />
@@ -130,6 +128,8 @@ const styles = StyleSheet.create({
   },
   topRow: {
     alignItems: 'flex-start',
+    zIndex: 2,
+    elevation: 2,
   },
   backFab: {
     width: 44,
@@ -138,6 +138,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.navy,
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 2,
+    elevation: 2,
   },
   centerBlock: {
     flex: 1,

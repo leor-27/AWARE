@@ -23,7 +23,7 @@ import { UserProfile } from './LoginScreen';
 
 interface CreateAccountScreenProps {
   feedbackPrefs: FeedbackPreferences;
-  onCreateSuccess: (profile: Partial<UserProfile>) => void;
+  onCreateSuccess: (profile: Partial<UserProfile>, password?: string) => void;
   onGoToSignIn: () => void;
 }
 
@@ -33,21 +33,27 @@ export const CreateAccountScreen: React.FC<CreateAccountScreenProps> = ({
   onGoToSignIn,
 }) => {
   const { width } = useWindowDimensions();
-  const clampedWidth = Math.min(width, 460);
+  const clampedWidth = Math.min(width, 390);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [accountError, setAccountError] = useState(false);
 
   const handleCreate = () => {
+    if (!name.trim() || !email.trim() || !password) {
+      setAccountError(true);
+      return;
+    }
+    setAccountError(false);
     triggerHaptic('success', feedbackPrefs.hapticsEnabled);
     speakCue('Account created. Let us configure permissions.', feedbackPrefs);
     onCreateSuccess({
-      name: name.trim() || undefined,
-      email: email.trim() || undefined,
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
       phone: phone.trim() || undefined,
-    });
+    }, password);
   };
 
   return (
@@ -137,6 +143,12 @@ export const CreateAccountScreen: React.FC<CreateAccountScreenProps> = ({
               <Text style={styles.primaryBtnText}>Create Account</Text>
             </Pressable>
           </View>
+
+          {accountError && (
+            <Text style={styles.accountError}>
+              Enter your name, email, and password to create an account.
+            </Text>
+          )}
 
           <View style={styles.dividerRow}>
             <View style={styles.dividerLine} />
@@ -236,6 +248,12 @@ const styles = StyleSheet.create({
     height: 46,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 8,
+  },
+  accountError: {
+    color: colors.danger,
+    fontSize: 12,
+    textAlign: 'center',
     marginTop: 8,
   },
   primaryBtnPressed: {

@@ -74,7 +74,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
   onComplete,
 }) => {
   const { width } = useWindowDimensions();
-  const clampedWidth = Math.min(width, 460);
+  const clampedWidth = Math.min(width, 390);
   const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 

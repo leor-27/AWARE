@@ -10,6 +10,7 @@ import {
   CheckCircleOutlineIcon,
   ClockOutlineIcon,
   CloudDownIcon,
+  GuestUserIcon,
   MapPinOutlineIcon,
   MicOutlineIcon,
   ShieldCheckIcon,
@@ -82,6 +83,9 @@ export const DEFAULT_HISTORY_SESSIONS: SosHistorySession[] = [
 type HistorySubView =
   | 'list'
   | 'details'
+  | 'attempt-log'
+  | 'clear-confirm'
+  | 'upload-status'
   | 'recording'
   | 'delete-confirm'
   | 'deletion-pending'
@@ -110,10 +114,8 @@ export const EmergencyHistoryFlow: React.FC<EmergencyHistoryFlowProps> = ({
   const [selectedId, setSelectedId] = useState<string | null>(
     initialSessionId ?? sessions[0]?.id ?? null
   );
-  const [showAttemptLog, setShowAttemptLog] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
-  const [showUploadNotice, setShowUploadNotice] = useState(false);
 
   const selectedSession =
     sessions.find((s) => s.id === selectedId) ?? sessions[0] ?? null;
@@ -300,6 +302,61 @@ export const EmergencyHistoryFlow: React.FC<EmergencyHistoryFlowProps> = ({
     );
   }
 
+  if (subView === 'clear-confirm') {
+    return (
+      <ScrollView style={styles.root} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.topIconTile}><ClockOutlineIcon size={22} color={colors.sage} /></View>
+        <Text style={styles.heading}>Clear emergency history?</Text>
+        <Text style={styles.subheading}>This removes every saved session.</Text>
+        <View style={styles.blueCard}>
+          <View style={styles.cardHeaderRow}><MicOutlineIcon size={20} color={colors.sage} /><Text style={styles.cardTitle}>History and recordings</Text></View>
+          <Text style={styles.cardLine}>All session details and associated recordings will be removed. This cannot be undone.</Text>
+        </View>
+        <View style={styles.actionsStack}>
+          <Pressable onPress={() => { triggerHaptic('tap', feedbackPrefs.hapticsEnabled); setSubView('list'); }} style={styles.navyPillBtn}><Text style={styles.navyPillText}>Keep history</Text></Pressable>
+          <Pressable onPress={() => { triggerHaptic('warning', feedbackPrefs.hapticsEnabled); onClearHistory(); setSubView('list'); speakCue('Emergency history cleared.', feedbackPrefs); }} style={styles.outlinePillBtn}><Text style={styles.outlinePillText}>Clear all history</Text></Pressable>
+        </View>
+      </ScrollView>
+    );
+  }
+
+  if (subView === 'attempt-log' && selectedSession) {
+    const attemptRows: string[] = [
+      selectedSession.sendingResults[0] ?? 'Emergency contact',
+      selectedSession.sendingResults[selectedSession.sendingResults.length - 1] ?? 'No attempts recorded',
+    ];
+    return (
+      <ScrollView style={styles.root} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.topIconTile}><ClockOutlineIcon size={22} color={colors.sage} /></View>
+        <Text style={styles.heading}>Sending attempts</Text>
+        <Text style={styles.subheading}>{selectedSession.fullDate}</Text>
+        {attemptRows.map((result, i) => (
+          <View key={`${result}-${i}`} style={styles.blueCard}>
+            <View style={styles.cardHeaderRow}><GuestUserIcon size={20} color={colors.sage} /><Text style={styles.cardTitle}>{result.split(' — ')[0]}</Text></View>
+            <Text style={styles.cardLine}>{i === 0 ? 'Attempt 1 • Sent at 9:17 AM' : 'Attempts 1–3 • Failed'}</Text>
+            <Text style={styles.cardLine}>{i === 0 ? 'Delivery unconfirmed' : 'Cellular service unavailable'}</Text>
+          </View>
+        ))}
+        <Pressable onPress={() => setSubView('details')} style={styles.outlinePillBtn}><Text style={styles.outlinePillText}>Back to session details</Text></Pressable>
+      </ScrollView>
+    );
+  }
+
+  if (subView === 'upload-status' && selectedSession) {
+    return (
+      <ScrollView style={styles.root} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.topIconTile}><CloudDownIcon size={22} color={colors.sage} /></View>
+        <Text style={styles.heading}>Recording upload</Text>
+        <Text style={styles.subheading}>Your recording stays on this device.</Text>
+        <View style={styles.blueCard}>
+          <View style={styles.cardHeaderRow}><CloudDownIcon size={20} color={colors.sage} /><Text style={styles.cardTitle}>Waiting for connection</Text></View>
+          <Text style={styles.cardLine}>{formatDuration(selectedSession.recordingDurationSec)} recording • Upload pending</Text>
+        </View>
+        <Pressable onPress={() => setSubView('recording')} style={styles.outlinePillBtn}><Text style={styles.outlinePillText}>Back to recording</Text></Pressable>
+      </ScrollView>
+    );
+  }
+
   /* 4. EMERGENCY RECORDING PLAYER */
   if (subView === 'recording' && selectedSession) {
     return (
@@ -355,19 +412,11 @@ export const EmergencyHistoryFlow: React.FC<EmergencyHistoryFlowProps> = ({
           </Pressable>
         </View>
 
-        {showUploadNotice && (
-          <View style={styles.blueCard}>
-            <Text style={styles.cardLine}>
-              Audio is queued locally and will upload automatically when online.
-            </Text>
-          </View>
-        )}
-
         <View style={styles.actionsStack}>
           <Pressable
             onPress={() => {
               triggerHaptic('tap', feedbackPrefs.hapticsEnabled);
-              setShowUploadNotice((prev) => !prev);
+              setSubView('upload-status');
             }}
             style={styles.outlinePillBtn}
           >
@@ -377,7 +426,6 @@ export const EmergencyHistoryFlow: React.FC<EmergencyHistoryFlowProps> = ({
           <Pressable
             onPress={() => {
               setIsPlaying(false);
-              setShowUploadNotice(false);
               setSubView('details');
             }}
             style={styles.outlinePillBtn}
@@ -428,24 +476,12 @@ export const EmergencyHistoryFlow: React.FC<EmergencyHistoryFlowProps> = ({
         <Pressable
           onPress={() => {
             triggerHaptic('tap', feedbackPrefs.hapticsEnabled);
-            setShowAttemptLog((prev) => !prev);
+            setSubView('attempt-log');
           }}
           style={styles.outlinePillBtn}
         >
-          <Text style={styles.outlinePillText}>
-            {showAttemptLog ? 'Hide attempt log' : 'View attempt log'}
-          </Text>
+          <Text style={styles.outlinePillText}>View attempt log</Text>
         </Pressable>
-
-        {showAttemptLog && (
-          <View style={styles.sageCard}>
-            {selectedSession.attemptLog.map((log, i) => (
-              <Text key={i} style={styles.cardLine}>
-                • {log}
-              </Text>
-            ))}
-          </View>
-        )}
 
         <View style={styles.sageCard}>
           <View style={styles.cardHeaderRow}>
@@ -483,7 +519,6 @@ export const EmergencyHistoryFlow: React.FC<EmergencyHistoryFlowProps> = ({
         <Pressable
           onPress={() => {
             triggerHaptic('tap', feedbackPrefs.hapticsEnabled);
-            setShowAttemptLog(false);
             setSubView('list');
           }}
           style={styles.outlinePillBtn}
@@ -506,14 +541,15 @@ export const EmergencyHistoryFlow: React.FC<EmergencyHistoryFlowProps> = ({
       </View>
 
       <Text style={styles.heading}>Emergency history</Text>
-      <Text style={styles.subheading}>Newest sessions first</Text>
+      <Text style={styles.subheading}>{sessions.length ? 'Newest sessions first' : 'No saved sessions'}</Text>
 
       {sessions.length === 0 ? (
         <View style={styles.sageCard}>
-          <Text style={styles.cardTitle}>No saved sessions</Text>
+          <View style={styles.cardHeaderRow}><ShieldCheckIcon size={20} color={colors.sage} /><Text style={styles.cardTitle}>A fresh start</Text></View>
           <Text style={styles.cardLine}>
-            Completed SOS sessions and local emergency recordings appear here.
+            Future emergency sessions will appear here.
           </Text>
+          <Pressable onPress={onBackToEmergencySos} style={[styles.outlinePillBtn, { marginTop: 6 }]}><Text style={styles.outlinePillText}>Back to Emergency SOS</Text></Pressable>
         </View>
       ) : (
         sessions.map((item, idx) => (
@@ -529,7 +565,6 @@ export const EmergencyHistoryFlow: React.FC<EmergencyHistoryFlowProps> = ({
               onPress={() => {
                 triggerHaptic('tap', feedbackPrefs.hapticsEnabled);
                 setSelectedId(item.id);
-                setShowAttemptLog(false);
                 setSubView('details');
               }}
               style={[styles.outlinePillBtn, { marginTop: 6 }]}
@@ -547,8 +582,7 @@ export const EmergencyHistoryFlow: React.FC<EmergencyHistoryFlowProps> = ({
           <Pressable
             onPress={() => {
               triggerHaptic('warning', feedbackPrefs.hapticsEnabled);
-              onClearHistory();
-              setSubView('deletion-pending');
+              setSubView('clear-confirm');
             }}
             style={styles.dangerPillBtn}
           >
@@ -556,15 +590,17 @@ export const EmergencyHistoryFlow: React.FC<EmergencyHistoryFlowProps> = ({
           </Pressable>
         )}
 
-        <Pressable
-          onPress={() => {
-            triggerHaptic('tap', feedbackPrefs.hapticsEnabled);
-            onBackToEmergencySos();
-          }}
-          style={styles.outlinePillBtn}
-        >
-          <Text style={styles.outlinePillText}>Back to Emergency SOS</Text>
-        </Pressable>
+        {sessions.length > 0 && (
+          <Pressable
+            onPress={() => {
+              triggerHaptic('tap', feedbackPrefs.hapticsEnabled);
+              onBackToEmergencySos();
+            }}
+            style={styles.outlinePillBtn}
+          >
+            <Text style={styles.outlinePillText}>Back to Emergency SOS</Text>
+          </Pressable>
+        )}
       </View>
     </ScrollView>
   );

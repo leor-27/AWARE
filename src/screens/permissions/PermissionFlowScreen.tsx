@@ -20,9 +20,9 @@ import {
 } from '../../components/AwareIcons';
 import { colors, radii, spacing } from '../../theme/tokens';
 import { FeedbackPreferences, speakCue, triggerHaptic } from '../../utils/feedback';
+import type { UserRole } from '../RoleSelectionScreen';
 
 interface PermissionStep {
-  stepLabel: string;
   title: string;
   description: string;
   bullets: string[];
@@ -32,7 +32,6 @@ interface PermissionStep {
 
 const PERMISSION_STEPS: PermissionStep[] = [
   {
-    stepLabel: '1 of 4',
     title: 'Camera Access',
     description:
       'Camera Access allows AWARE to use your device’s camera to detect objects and provide real-time environmental awareness.',
@@ -45,7 +44,6 @@ const PERMISSION_STEPS: PermissionStep[] = [
     renderIcon: () => <CameraPermissionIcon size={108} />,
   },
   {
-    stepLabel: '2 of 4',
     title: 'Microphone\nAccess',
     description:
       'Microphone Access allows AWARE to use your device’s microphone for interaction and talkback.',
@@ -58,7 +56,6 @@ const PERMISSION_STEPS: PermissionStep[] = [
     renderIcon: () => <MicPermissionIcon size={108} />,
   },
   {
-    stepLabel: '3 of 4',
     title: 'Location Access',
     description:
       'Location Access allows AWARE to use your device’s location to track and provide location updates.',
@@ -71,7 +68,6 @@ const PERMISSION_STEPS: PermissionStep[] = [
     renderIcon: () => <LocationPermissionIcon size={108} />,
   },
   {
-    stepLabel: '4 of 4',
     title: 'SOS Shortcut',
     description:
       'Allow AWARE to use your volume buttons to trigger an SOS call when you need help.',
@@ -87,28 +83,31 @@ const PERMISSION_STEPS: PermissionStep[] = [
 
 interface PermissionFlowScreenProps {
   feedbackPrefs: FeedbackPreferences;
+  role: UserRole;
   onComplete: () => void;
 }
 
 export const PermissionFlowScreen: React.FC<PermissionFlowScreenProps> = ({
   feedbackPrefs,
+  role,
   onComplete,
 }) => {
   const { width } = useWindowDimensions();
-  const clampedWidth = Math.min(width, 460);
+  const clampedWidth = Math.min(width, 390);
   const [stepIdx, setStepIdx] = useState(0);
   const [, requestCamera] = useCameraPermissions();
+  const steps = role === 'trusted' ? PERMISSION_STEPS.slice(0, 3) : PERMISSION_STEPS;
 
-  const current = PERMISSION_STEPS[stepIdx];
+  const current = steps[stepIdx];
 
   const handleAllow = async () => {
     triggerHaptic('success', feedbackPrefs.hapticsEnabled);
 
     if (Platform.OS !== 'web') {
       try {
-        if (stepIdx === 0) {
+        if (current.title === 'Camera Access') {
           await requestCamera();
-        } else if (stepIdx === 2) {
+        } else if (current.title === 'Location Access') {
           await Location.requestForegroundPermissionsAsync();
         }
       } catch {
@@ -116,15 +115,20 @@ export const PermissionFlowScreen: React.FC<PermissionFlowScreenProps> = ({
       }
     }
 
-    if (stepIdx < PERMISSION_STEPS.length - 1) {
+    if (stepIdx < steps.length - 1) {
       const next = stepIdx + 1;
       setStepIdx(next);
       speakCue(
-        `${PERMISSION_STEPS[next].title.replace('\n', ' ')}. ${PERMISSION_STEPS[next].description}`,
+        `${steps[next].title.replace('\n', ' ')}. ${steps[next].description}`,
         feedbackPrefs
       );
     } else {
-      speakCue('All permissions configured. Smart Vision is ready.', feedbackPrefs);
+      speakCue(
+        role === 'trusted'
+          ? 'All permissions configured. Location monitoring is ready.'
+          : 'All permissions configured. Smart Vision is ready.',
+        feedbackPrefs
+      );
       onComplete();
     }
   };
@@ -138,7 +142,7 @@ export const PermissionFlowScreen: React.FC<PermissionFlowScreenProps> = ({
         {/* Top-right step badge */}
         <View style={styles.badgeRow}>
           <View style={styles.stepBadge}>
-            <Text style={styles.stepBadgeText}>{current.stepLabel}</Text>
+            <Text style={styles.stepBadgeText}>{`${stepIdx + 1} of ${steps.length}`}</Text>
           </View>
         </View>
 
